@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import customers
+from app.routers import customers, orders
 
 app = FastAPI(title="Bookstore Inventory API")
 
@@ -13,3 +13,4 @@ app.add_middleware(
 )
 
 app.include_router(customers.router, prefix="/customers", tags=["customers"])
+app.include_router(orders.router, prefix="/orders", tags=["orders"])

@@ -1,16 +1,3 @@
-from unittest.mock import patch
-from app.auth import get_current_user
-from app.main import app
-
-
-def override_auth():
-    app.dependency_overrides[get_current_user] = lambda: "test-user"
-
-
-def clear_auth():
-    app.dependency_overrides.pop(get_current_user, None)
-
-
 def test_models_import():
     from app.models import User, Order, Book, Price, OrderBook
 
@@ -27,39 +14,27 @@ def test_schemas_import():
 
 
 async def test_create_customer(client):
-    override_auth()
     resp = await client.post(
         "/customers/", json={"name": "Amir", "phone_number": "0123456789"}
     )
-    clear_auth()
     assert resp.status_code == 201
     assert resp.json()["name"] == "Amir"
 
 
 async def test_list_customers(client):
-    override_auth()
-    await client.post(
-        "/customers/", json={"name": "Amir", "phone_number": "011"}
-    )
+    await client.post("/customers/", json={"name": "Amir", "phone_number": "011"})
     resp = await client.get("/customers/")
-    clear_auth()
     assert resp.status_code == 200
     assert len(resp.json()) == 1
 
 
 async def test_search_customers(client):
-    override_auth()
-    await client.post(
-        "/customers/", json={"name": "Zara", "phone_number": "012"}
-    )
+    await client.post("/customers/", json={"name": "Zara", "phone_number": "012"})
     resp = await client.get("/customers/?search=zar")
-    clear_auth()
     assert resp.status_code == 200
     assert resp.json()[0]["name"] == "Zara"
 
 
 async def test_get_customer_not_found(client):
-    override_auth()
     resp = await client.get("/customers/999")
-    clear_auth()
     assert resp.status_code == 404
