@@ -1,0 +1,95 @@
+// ============================================================
+// Bookstore Inventory Management System
+// Personal Shopper — Buy & Deliver
+// ============================================================
+
+// --- Enums ---------------------------------------------------
+
+Enum book_status {
+  deposit        [note: 'Deposit received from customer']
+  paid           [note: 'Full payment received']
+  bought         [note: 'Book purchased by shopper']
+  under_delivery [note: 'In transit to customer']
+  delivered      [note: 'Received by customer']
+  cancelled      [note: 'Order was cancelled']
+}
+
+Enum order_status {
+  active
+  cancelled
+}
+
+Enum postage_type {
+  premium    [note: 'RM10']
+  hard_cover [note: 'RM8']
+  soft_cover [note: 'RM5']
+}
+
+// --- Core Tables ---------------------------------------------
+
+Table users {
+  id           integer   [pk, increment]
+  name         varchar   [not null]
+  phone_number varchar   [not null]
+  created_at   timestamp [default: `now()`]
+
+  note: 'Customers who place orders'
+}
+
+// Auth is handled by Supabase Auth — no custom auth table needed
+
+Table orders {
+  id           integer      [pk, increment]
+  user_id      integer      [not null]
+  status       order_status [not null, default: 'active']
+  postage_type postage_type                // optional; null = no postage charge
+  address      varchar      [not null]
+  note         text
+  created_at   timestamp    [default: `now()`]
+  updated_at   timestamp
+
+  note: 'One user can have many orders (one-to-many)'
+}
+
+// --- Book & Pricing ------------------------------------------
+
+Table books {
+  id         integer     [pk, increment]
+  title      varchar     [not null]
+  author     varchar
+  status     book_status [not null, default: 'deposit']
+  created_at timestamp   [default: `now()`]
+  updated_at timestamp
+
+  note: 'Each row is a specific copy/instance ordered by a customer'
+}
+
+Table prices {
+  id             integer         [pk, increment]
+  book_id        integer         [unique, not null]  // one-to-one with books
+  total_price    "decimal(10,2)" [not null]
+  deposit_amount "decimal(10,2)" [not null, default: 0]
+  // outstanding_amount is derived: total_price - deposit_amount
+
+  note: 'One price record per book; outstanding = total_price - deposit_amount'
+}
+
+// --- Junction Table (User <-> Books via Orders) --------------
+
+Table order_books {
+  order_id integer [not null]
+  book_id  integer [not null]
+
+  indexes {
+    (order_id, book_id) [pk]
+  }
+
+  note: 'Bridges orders and books; user-books many-to-many is resolved through users -> orders -> order_books -> books'
+}
+
+// --- Relationships -------------------------------------------
+
+Ref: orders.user_id       > users.id         // many-to-one (user has many orders)
+Ref: prices.book_id       - books.id         // one-to-one
+Ref: order_books.order_id > orders.id        // many-to-one
+Ref: order_books.book_id  > books.id         // many-to-one
