@@ -119,17 +119,17 @@ export default function BooksPage() {
                   <StatusBadge status={book.status} />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {book.price ? `RM ${book.price.total_price.toFixed(2)}` : "—"}
+                  {book.price ? `RM ${Number(book.price.total_price).toFixed(2)}` : "—"}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {book.price
-                    ? `RM ${book.price.deposit_amount.toFixed(2)}`
+                    ? `RM ${Number(book.price.deposit_amount).toFixed(2)}`
                     : "—"}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {book.price && book.price.outstanding_amount > 0 ? (
+                  {book.price && Number(book.price.outstanding_amount) > 0 ? (
                     <span className="text-destructive">
-                      RM {book.price.outstanding_amount.toFixed(2)}
+                      RM {Number(book.price.outstanding_amount).toFixed(2)}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">—</span>

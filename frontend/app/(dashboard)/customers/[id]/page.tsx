@@ -59,7 +59,7 @@ export default function CustomerDetailPage({
       </div>
 
       <div className="space-y-4">
-        <h2 className="font-serif text-lg font-semibold">
+        <h2 className="font-sans text-lg font-semibold">
           Orders ({customer.orders.length})
         </h2>
 
@@ -97,7 +97,7 @@ export default function CustomerDetailPage({
               </div>
               {order.total_outstanding > 0 && (
                 <p className="text-sm font-medium text-destructive">
-                  Outstanding: RM {order.total_outstanding.toFixed(2)}
+                  Outstanding: RM {Number(order.total_outstanding).toFixed(2)}
                 </p>
               )}
             </CardContent>

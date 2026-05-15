@@ -255,7 +255,7 @@ export default function OrderDetailPage({
             {order.postage_charge != null && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Postage</span>
-                <span>RM {order.postage_charge.toFixed(2)}</span>
+                <span>RM {Number(order.postage_charge).toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between font-medium">
@@ -265,7 +265,7 @@ export default function OrderDetailPage({
                   order.total_outstanding > 0 ? "text-destructive" : "text-green-700"
                 }
               >
-                RM {order.total_outstanding.toFixed(2)}
+                RM {Number(order.total_outstanding).toFixed(2)}
               </span>
             </div>
           </CardContent>
@@ -273,7 +273,7 @@ export default function OrderDetailPage({
       </div>
 
       <div>
-        <h2 className="font-serif text-lg font-semibold mb-3">
+        <h2 className="font-sans text-lg font-semibold mb-3">
           Books ({order.books.length})
         </h2>
         <Card>

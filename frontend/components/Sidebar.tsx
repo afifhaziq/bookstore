@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, Users, ShoppingBag, BookOpen, LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth";
+import { ThemeToggle } from "./ThemeToggle";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -24,7 +25,7 @@ export function Sidebar() {
   return (
     <aside className="w-56 shrink-0 border-r bg-card flex flex-col">
       <div className="px-5 py-5 border-b">
-        <span className="font-serif text-lg font-semibold">Bookstore</span>
+        <span className="font-sans text-lg font-semibold">Bookstore</span>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
@@ -47,7 +48,8 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="px-3 py-4 border-t">
+      <div className="px-3 py-4 border-t space-y-1">
+        <ThemeToggle />
         <button
           onClick={handleSignOut}
           className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"

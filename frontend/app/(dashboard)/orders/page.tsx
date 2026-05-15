@@ -65,7 +65,7 @@ export default function OrdersPage() {
                 <TableCell className="text-right tabular-nums">
                   {order.total_outstanding > 0 ? (
                     <span className="text-destructive">
-                      RM {order.total_outstanding.toFixed(2)}
+                      RM {Number(order.total_outstanding).toFixed(2)}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">—</span>

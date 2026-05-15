@@ -76,14 +76,14 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold tabular-nums text-destructive">
-              RM {data.total_outstanding.toFixed(2)}
+              RM {Number(data.total_outstanding).toFixed(2)}
             </p>
           </CardContent>
         </Card>
       </div>
 
       <div>
-        <h2 className="font-serif text-lg font-semibold mb-3">
+        <h2 className="font-sans text-lg font-semibold mb-3">
           Books with Outstanding Balance
         </h2>
         {data.books_with_outstanding.length === 0 ? (
@@ -109,7 +109,7 @@ export default function DashboardPage() {
                     <StatusBadge status={book.status} />
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-destructive">
-                    RM {book.price?.outstanding_amount.toFixed(2) ?? "0.00"}
+                    RM {book.price ? Number(book.price.outstanding_amount).toFixed(2) : "0.00"}
                   </TableCell>
                 </TableRow>
               ))}

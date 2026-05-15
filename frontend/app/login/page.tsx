@@ -29,7 +29,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 p-8 border rounded-lg bg-card">
         <div>
-          <h1 className="font-serif text-2xl font-semibold">Bookstore</h1>
+          <h1 className="font-sans text-2xl font-semibold">Bookstore</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Sign in to manage your inventory
           </p>
