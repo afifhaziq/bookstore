@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useBooks, useUpdateBook, useDeleteBook } from "@/hooks/useBooks";
+import { useBooks, useCreateBook, useDeleteBook } from "@/hooks/useBooks";
+import { usePublishers, useCreatePublisher } from "@/hooks/usePublishers";
 import { PageShell } from "@/components/PageShell";
-import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -12,6 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -30,28 +39,212 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { BookStatus } from "@/lib/api";
-import { Trash2 } from "lucide-react";
+import { Book, PsChargeType } from "@/lib/api";
+import { Plus, Trash2 } from "lucide-react";
 
-const BOOK_STATUSES: BookStatus[] = [
-  "deposit",
-  "paid",
-  "bought",
-  "under_delivery",
-  "delivered",
-  "cancelled",
+const PS_CHARGE_OPTIONS: { value: PsChargeType; label: string }[] = [
+  { value: "premium", label: "Premium (RM 10)" },
+  { value: "hard_cover", label: "Hard Cover (RM 8)" },
+  { value: "soft_cover", label: "Soft Cover (RM 5)" },
 ];
 
+function BookRow({ book, onDelete }: { book: Book; onDelete: () => void }) {
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{book.title}</TableCell>
+      <TableCell className="text-muted-foreground">{book.publisher_name}</TableCell>
+      <TableCell className="text-muted-foreground capitalize">
+        {book.ps_charge.replace("_", " ")}
+      </TableCell>
+      <TableCell className="text-right tabular-nums">
+        RM {Number(book.total_price).toFixed(2)}
+      </TableCell>
+      <TableCell className="text-right tabular-nums">
+        RM {Number(book.deposit_amount).toFixed(2)}
+      </TableCell>
+      <TableCell>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+          onClick={onDelete}
+        >
+          <Trash2 size={14} />
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function AddBookDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const createBook = useCreateBook();
+  const createPublisher = useCreatePublisher();
+  const { data: publishers } = usePublishers();
+
+  const [title, setTitle] = useState("");
+  const [publisherId, setPublisherId] = useState<string>("");
+  const [newPublisherName, setNewPublisherName] = useState("");
+  const [showNewPublisher, setShowNewPublisher] = useState(false);
+  const [psCharge, setPsCharge] = useState<PsChargeType | "">("");
+  const [totalPrice, setTotalPrice] = useState("");
+  const [depositAmount, setDepositAmount] = useState("");
+
+  function reset() {
+    setTitle("");
+    setPublisherId("");
+    setNewPublisherName("");
+    setShowNewPublisher(false);
+    setPsCharge("");
+    setTotalPrice("");
+    setDepositAmount("");
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    let resolvedPublisherId = Number(publisherId);
+
+    if (showNewPublisher && newPublisherName.trim()) {
+      const pub = await createPublisher.mutateAsync({ name: newPublisherName.trim() });
+      resolvedPublisherId = pub.id;
+    }
+
+    if (!resolvedPublisherId || !psCharge) return;
+
+    await createBook.mutateAsync({
+      title,
+      publisher_id: resolvedPublisherId,
+      ps_charge: psCharge,
+      total_price: totalPrice,
+      deposit_amount: depositAmount || "0",
+    });
+    reset();
+    onClose();
+  }
+
+  const isPending = createBook.isPending || createPublisher.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Book</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <Label>Title *</Label>
+            <Input
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Book title"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label>Publisher *</Label>
+            {showNewPublisher ? (
+              <div className="flex gap-2">
+                <Input
+                  value={newPublisherName}
+                  onChange={(e) => setNewPublisherName(e.target.value)}
+                  placeholder="New publisher name"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowNewPublisher(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Select value={publisherId} onValueChange={(v) => v && setPublisherId(v)}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select publisher…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(publishers ?? []).map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowNewPublisher(true)}
+                >
+                  <Plus size={14} />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label>PS Charge *</Label>
+            <Select value={psCharge} onValueChange={(v) => v && setPsCharge(v as PsChargeType)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select PS charge type…" />
+              </SelectTrigger>
+              <SelectContent>
+                {PS_CHARGE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Total price (RM) *</Label>
+              <Input
+                required
+                type="number"
+                step="0.01"
+                min="0"
+                value={totalPrice}
+                onChange={(e) => setTotalPrice(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Deposit paid (RM)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Adding…" : "Add Book"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function BooksPage() {
-  const [filterStatus, setFilterStatus] = useState<BookStatus | "all">("all");
-  const [outstandingOnly, setOutstandingOnly] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  const { data: books, isLoading } = useBooks({
-    status: filterStatus === "all" ? undefined : filterStatus,
-    outstanding_only: outstandingOnly,
-  });
-
+  const { data: books, isLoading } = useBooks();
   const deleteBook = useDeleteBook();
 
   async function handleDelete() {
@@ -61,38 +254,15 @@ export default function BooksPage() {
   }
 
   return (
-    <PageShell title="Books">
-      <div className="flex items-center gap-3 flex-wrap">
-        <Select
-          value={filterStatus}
-          onValueChange={(v) => setFilterStatus(v as BookStatus | "all")}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {BOOK_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                <StatusBadge status={s} />
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <button
-          type="button"
-          onClick={() => setOutstandingOnly((p) => !p)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm transition-colors ${
-            outstandingOnly
-              ? "bg-destructive/10 border-destructive text-destructive"
-              : "hover:bg-accent"
-          }`}
-        >
-          Outstanding only
-        </button>
-      </div>
-
+    <PageShell
+      title="Books"
+      action={
+        <Button size="sm" onClick={() => setAddOpen(true)}>
+          <Plus size={14} className="mr-1" />
+          Add Book
+        </Button>
+      }
+    >
       {isLoading ? (
         <p className="text-muted-foreground text-sm">Loading…</p>
       ) : (
@@ -100,66 +270,33 @@ export default function BooksPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Title</TableHead>
-              <TableHead>Author</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Publisher</TableHead>
+              <TableHead>PS Charge</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead className="text-right">Deposit</TableHead>
-              <TableHead className="text-right">Outstanding</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {(books ?? []).map((book) => (
-              <TableRow key={book.id}>
-                <TableCell className="font-medium">{book.title}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {book.author ?? "—"}
-                </TableCell>
-                <TableCell>
-                  <StatusBadge status={book.status} />
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {book.price ? `RM ${Number(book.price.total_price).toFixed(2)}` : "—"}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {book.price
-                    ? `RM ${Number(book.price.deposit_amount).toFixed(2)}`
-                    : "—"}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {book.price && Number(book.price.outstanding_amount) > 0 ? (
-                    <span className="text-destructive">
-                      RM {Number(book.price.outstanding_amount).toFixed(2)}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => setDeleteId(book.id)}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </TableCell>
-              </TableRow>
+              <BookRow
+                key={book.id}
+                book={book}
+                onDelete={() => setDeleteId(book.id)}
+              />
             ))}
             {books?.length === 0 && (
               <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="text-center text-muted-foreground"
-                >
-                  No books match the current filter.
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  No books found. Add one to get started.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       )}
+
+      <AddBookDialog open={addOpen} onClose={() => setAddOpen(false)} />
 
       <AlertDialog
         open={deleteId != null}
@@ -169,7 +306,7 @@ export default function BooksPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this book?</AlertDialogTitle>
             <AlertDialogDescription>
-              The book will be permanently removed from the order.
+              The book will be permanently removed from the catalog.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

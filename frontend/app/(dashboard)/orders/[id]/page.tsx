@@ -2,8 +2,8 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { useOrder, useCancelOrder, useUpdateOrder, useAddBooksToOrder } from "@/hooks/useOrders";
-import { useUpdateBook, useBooks } from "@/hooks/useBooks";
+import { useOrder, useCancelOrder, useUpdateOrder, useAddCopiesToOrder, useUpdateOrderBook } from "@/hooks/useOrders";
+import { useBooks } from "@/hooks/useBooks";
 import { PageShell } from "@/components/PageShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PostageBadge } from "@/components/PostageBadge";
@@ -36,8 +36,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ChevronLeft, Plus } from "lucide-react";
-import { Label } from "@/components/ui/label";
-import { BookStatus } from "@/lib/api";
+import { BookStatus, OrderBook, CopySpec } from "@/lib/api";
 
 const BOOK_STATUSES: BookStatus[] = [
   "deposit",
@@ -50,29 +49,16 @@ const BOOK_STATUSES: BookStatus[] = [
 
 function AddBooksDialog({
   orderId,
-  existingBookIds,
   open,
   onClose,
 }: {
   orderId: number;
-  existingBookIds: number[];
   open: boolean;
   onClose: () => void;
 }) {
   const { data: allBooks } = useBooks();
-  const addBooks = useAddBooksToOrder(orderId);
-
-  const [tab, setTab] = useState<"existing" | "new">("existing");
-
-  // existing-tab state: how many copies to add per book
+  const addCopies = useAddCopiesToOrder(orderId);
   const [steppers, setSteppers] = useState<Record<number, number>>({});
-
-  // new-tab state
-  const [title, setTitle] = useState("");
-  const [author, setAuthor] = useState("");
-  const [totalPrice, setTotalPrice] = useState("");
-  const [deposit, setDeposit] = useState("0");
-  const [quantity, setQuantity] = useState(1);
 
   const books = allBooks ?? [];
   const totalToAdd = Object.values(steppers).reduce((s, n) => s + n, 0);
@@ -85,73 +71,18 @@ function AddBooksDialog({
     setSteppers((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
   }
 
-  function resetForm() {
-    setSteppers({});
-    setTitle("");
-    setAuthor("");
-    setTotalPrice("");
-    setDeposit("0");
-    setQuantity(1);
-    setTab("existing");
-  }
-
   function handleClose() {
-    resetForm();
+    setSteppers({});
     onClose();
   }
 
-  async function handleAddExisting() {
+  async function handleAdd() {
     if (totalToAdd === 0) return;
-    const bookIdsToAdd: number[] = [];
-    const newBookSpecs: { title: string; author?: string; total_price: string; deposit_amount: string; quantity: number }[] = [];
-
-    for (const [idStr, delta] of Object.entries(steppers)) {
-      if (delta === 0) continue;
-      const bookId = Number(idStr);
-      const book = books.find((b) => b.id === bookId);
-      if (!book?.price) continue;
-      const inOrder = existingBookIds.includes(bookId);
-      if (!inOrder) {
-        bookIdsToAdd.push(bookId);
-        if (delta > 1) {
-          newBookSpecs.push({
-            title: book.title,
-            author: book.author ?? undefined,
-            total_price: String(book.price.total_price),
-            deposit_amount: String(book.price.deposit_amount),
-            quantity: delta - 1,
-          });
-        }
-      } else {
-        newBookSpecs.push({
-          title: book.title,
-          author: book.author ?? undefined,
-          total_price: String(book.price.total_price),
-          deposit_amount: String(book.price.deposit_amount),
-          quantity: delta,
-        });
-      }
-    }
-
-    await addBooks.mutateAsync({ book_ids: bookIdsToAdd, new_books: newBookSpecs });
-    resetForm();
-    onClose();
-  }
-
-  async function handleAddNew() {
-    if (!title.trim() || !totalPrice.trim()) return;
-    await addBooks.mutateAsync({
-      new_books: [
-        {
-          title: title.trim(),
-          author: author.trim() || undefined,
-          total_price: totalPrice,
-          deposit_amount: deposit,
-          quantity,
-        },
-      ],
-    });
-    resetForm();
+    const copies: CopySpec[] = Object.entries(steppers)
+      .filter(([, qty]) => qty > 0)
+      .map(([id, qty]) => ({ book_id: Number(id), quantity: qty }));
+    await addCopies.mutateAsync(copies);
+    setSteppers({});
     onClose();
   }
 
@@ -162,194 +93,75 @@ function AddBooksDialog({
           <DialogTitle>Add Books to Order</DialogTitle>
         </DialogHeader>
 
-        {/* Tab bar */}
-        <div className="flex border-b">
-          <button
-            type="button"
-            onClick={() => setTab("existing")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === "existing"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Select existing
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("new")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === "new"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Add new
-          </button>
-        </div>
-
-        {tab === "existing" ? (
-          books.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
-              No books found. Add books from the Books page first.
-            </p>
-          ) : (
-            <div className="space-y-2 max-h-72 overflow-y-auto">
-              {books.map((book) => {
-                const count = steppers[book.id] ?? 0;
-                const inOrder = existingBookIds.includes(book.id);
-                return (
-                  <div
-                    key={book.id}
-                    className="flex items-center justify-between px-4 py-3 rounded-lg border"
-                  >
-                    <div className="min-w-0 flex-1 mr-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-sm">{book.title}</p>
-                        {inOrder && (
-                          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                            in order
-                          </span>
-                        )}
-                      </div>
-                      {book.author && (
-                        <p className="text-xs text-muted-foreground">{book.author}</p>
-                      )}
-                      {book.price && (
-                        <p className="text-xs text-muted-foreground tabular-nums">
-                          RM {Number(book.price.total_price).toFixed(2)}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => decrement(book.id)}
-                        disabled={count === 0}
-                        className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium disabled:opacity-30 hover:bg-accent transition-colors"
-                      >
-                        −
-                      </button>
-                      <span className="w-6 text-center text-sm tabular-nums">{count}</span>
-                      <button
-                        type="button"
-                        onClick={() => increment(book.id)}
-                        className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium hover:bg-accent transition-colors"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )
+        {books.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            No books in catalog. Add books from the Books page first.
+          </p>
         ) : (
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="new-title">Title *</Label>
-              <Input
-                id="new-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Book title"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="new-author">Author</Label>
-              <Input
-                id="new-author"
-                value={author}
-                onChange={(e) => setAuthor(e.target.value)}
-                placeholder="Optional"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="new-price">Total price (RM) *</Label>
-                <Input
-                  id="new-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={totalPrice}
-                  onChange={(e) => setTotalPrice(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="new-deposit">Deposit (RM)</Label>
-                <Input
-                  id="new-deposit"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={deposit}
-                  onChange={(e) => setDeposit(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="new-qty">Quantity</Label>
-              <Input
-                id="new-qty"
-                type="number"
-                min="1"
-                max="50"
-                value={quantity}
-                onChange={(e) =>
-                  setQuantity(Math.min(50, Math.max(1, Number(e.target.value))))
-                }
-              />
-            </div>
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {books.map((book) => {
+              const count = steppers[book.id] ?? 0;
+              return (
+                <div
+                  key={book.id}
+                  className="flex items-center justify-between px-4 py-3 rounded-lg border"
+                >
+                  <div className="min-w-0 flex-1 mr-3">
+                    <p className="font-medium text-sm">{book.title}</p>
+                    <p className="text-xs text-muted-foreground">{book.publisher_name}</p>
+                    <p className="text-xs text-muted-foreground tabular-nums">
+                      RM {Number(book.total_price).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => decrement(book.id)}
+                      disabled={count === 0}
+                      className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium disabled:opacity-30 hover:bg-accent transition-colors"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center text-sm tabular-nums">{count}</span>
+                    <button
+                      type="button"
+                      onClick={() => increment(book.id)}
+                      className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium hover:bg-accent transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
-            Cancel
+          <Button variant="outline" onClick={handleClose}>Cancel</Button>
+          <Button onClick={handleAdd} disabled={totalToAdd === 0 || addCopies.isPending}>
+            {addCopies.isPending
+              ? "Adding…"
+              : `Add ${totalToAdd > 0 ? totalToAdd : ""} Book${totalToAdd !== 1 ? "s" : ""}`}
           </Button>
-          {tab === "existing" ? (
-            <Button
-              onClick={handleAddExisting}
-              disabled={totalToAdd === 0 || addBooks.isPending}
-            >
-              {addBooks.isPending
-                ? "Adding…"
-                : `Add ${totalToAdd > 0 ? totalToAdd : ""} Book${totalToAdd !== 1 ? "s" : ""}`}
-            </Button>
-          ) : (
-            <Button
-              onClick={handleAddNew}
-              disabled={!title.trim() || !totalPrice.trim() || addBooks.isPending}
-            >
-              {addBooks.isPending
-                ? "Adding…"
-                : `Add ${quantity > 1 ? `${quantity} ` : ""}Book${quantity !== 1 ? "s" : ""}`}
-            </Button>
-          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function BookRow({ book }: { book: { id: number; title: string; author: string | null; status: BookStatus; price: { total_price: number; deposit_amount: number; outstanding_amount: number } | null } }) {
-  const updateBook = useUpdateBook(book.id);
+function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
+  const updateOrderBook = useUpdateOrderBook(orderId);
   const [editing, setEditing] = useState(false);
-  const [deposit, setDeposit] = useState(
-    book.price?.deposit_amount.toString() ?? "0"
-  );
-
-  const outstanding = Number(book.price?.outstanding_amount ?? 0);
+  const [deposit, setDeposit] = useState(ob.deposit_amount.toString());
 
   async function handleStatusChange(status: BookStatus) {
-    if (status === "paid" && outstanding > 0) return;
-    await updateBook.mutateAsync({ status });
+    if (status === "paid" && ob.outstanding_amount > 0) return;
+    await updateOrderBook.mutateAsync({ obId: ob.id, data: { status } });
   }
 
   async function handleDepositSave() {
-    await updateBook.mutateAsync({ deposit_amount: deposit });
+    await updateOrderBook.mutateAsync({ obId: ob.id, data: { deposit_amount: deposit } });
     setEditing(false);
   }
 
@@ -357,18 +169,16 @@ function BookRow({ book }: { book: { id: number; title: string; author: string |
     <div className="flex flex-col gap-2 py-3 border-b last:border-0">
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-medium text-sm">{book.title}</p>
-          {book.author && (
-            <p className="text-xs text-muted-foreground">{book.author}</p>
-          )}
+          <p className="font-medium text-sm">{ob.title}</p>
+          <p className="text-xs text-muted-foreground">{ob.publisher_name}</p>
         </div>
-        <Select value={book.status} onValueChange={(v) => v && handleStatusChange(v as BookStatus)}>
+        <Select value={ob.status} onValueChange={(v) => v && handleStatusChange(v as BookStatus)}>
           <SelectTrigger className="w-40 h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {BOOK_STATUSES.map((s) => {
-              const disabled = s === "paid" && outstanding > 0;
+              const disabled = s === "paid" && ob.outstanding_amount > 0;
               return (
                 <SelectItem key={s} value={s} className="text-xs" disabled={disabled}>
                   <div className="flex items-center gap-2">
@@ -384,44 +194,45 @@ function BookRow({ book }: { book: { id: number; title: string; author: string |
         </Select>
       </div>
 
-      {book.price && (
-        <div className="flex items-end gap-3 text-xs">
-          <PriceSummary
-            totalPrice={book.price.total_price}
-            depositAmount={book.price.deposit_amount}
-            outstandingAmount={book.price.outstanding_amount}
-          />
-          {editing ? (
-            <div className="flex items-center gap-1">
-              <Input
-                className="h-7 w-24 text-xs"
-                value={deposit}
-                onChange={(e) => setDeposit(e.target.value)}
-              />
-              <Button size="sm" className="h-7 text-xs px-2" onClick={handleDepositSave}>
-                Save
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs px-2"
-                onClick={() => setEditing(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          ) : (
+      <div className="flex items-end gap-3 text-xs">
+        <PriceSummary
+          totalPrice={ob.total_price}
+          depositAmount={ob.deposit_amount}
+          outstandingAmount={ob.outstanding_amount}
+        />
+        {editing ? (
+          <div className="flex items-center gap-1">
+            <Input
+              className="h-7 w-24 text-xs"
+              value={deposit}
+              onChange={(e) => setDeposit(e.target.value)}
+            />
+            <Button size="sm" className="h-7 text-xs px-2" onClick={handleDepositSave}>
+              Save
+            </Button>
             <Button
               size="sm"
               variant="outline"
               className="h-7 text-xs px-2"
-              onClick={() => setEditing(true)}
+              onClick={() => setEditing(false)}
             >
-              Edit deposit
+              Cancel
             </Button>
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs px-2"
+            onClick={() => {
+              setDeposit(ob.deposit_amount.toString());
+              setEditing(true);
+            }}
+          >
+            Edit deposit
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -439,6 +250,8 @@ export default function OrderDetailPage({
   const [addBooksOpen, setAddBooksOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState(false);
   const [address, setAddress] = useState("");
+  const [editingPostage, setEditingPostage] = useState(false);
+  const [postageAmount, setPostageAmount] = useState("");
 
   if (isLoading) {
     return (
@@ -466,17 +279,18 @@ export default function OrderDetailPage({
     setEditingAddress(false);
   }
 
+  async function handlePostageSave() {
+    await updateOrder.mutateAsync({ postage_amount: postageAmount });
+    setEditingPostage(false);
+  }
+
   return (
     <PageShell
       title={`Order #${order.id}`}
       action={
         <div className="flex items-center gap-2">
           {order.status === "active" && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setCancelOpen(true)}
-            >
+            <Button variant="destructive" size="sm" onClick={() => setCancelOpen(true)}>
               Cancel order
             </Button>
           )}
@@ -507,17 +321,8 @@ export default function OrderDetailPage({
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                   />
-                  <Button size="sm" className="h-8" onClick={handleAddressSave}>
-                    Save
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8"
-                    onClick={() => setEditingAddress(false)}
-                  >
-                    Cancel
-                  </Button>
+                  <Button size="sm" className="h-8" onClick={handleAddressSave}>Save</Button>
+                  <Button size="sm" variant="outline" className="h-8" onClick={() => setEditingAddress(false)}>Cancel</Button>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -527,10 +332,7 @@ export default function OrderDetailPage({
                       size="sm"
                       variant="ghost"
                       className="h-6 px-2 text-xs"
-                      onClick={() => {
-                        setAddress(order.address);
-                        setEditingAddress(true);
-                      }}
+                      onClick={() => { setAddress(order.address); setEditingAddress(true); }}
                     >
                       Edit
                     </Button>
@@ -558,19 +360,48 @@ export default function OrderDetailPage({
             <CardTitle className="text-base">Payment summary</CardTitle>
           </CardHeader>
           <CardContent className="text-sm space-y-2">
-            {order.postage_charge != null && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Postage</span>
-                <span>RM {Number(order.postage_charge).toFixed(2)}</span>
+            {order.postage_type && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">
+                  Postage ({order.postage_type === "semenanjung" ? "Semenanjung" : "Sabah/Sarawak"})
+                </span>
+                {editingPostage ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      className="h-7 w-24 text-xs"
+                      value={postageAmount}
+                      onChange={(e) => setPostageAmount(e.target.value)}
+                    />
+                    <Button size="sm" className="h-7 text-xs px-2" onClick={handlePostageSave}>Save</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => setEditingPostage(false)}>Cancel</Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span>
+                      {order.postage_amount != null
+                        ? `RM ${Number(order.postage_amount).toFixed(2)}`
+                        : "—"}
+                    </span>
+                    {order.status === "active" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => {
+                          setPostageAmount(order.postage_amount?.toString() ?? "");
+                          setEditingPostage(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             <div className="flex justify-between font-medium">
               <span>Total outstanding</span>
-              <span
-                className={
-                  order.total_outstanding > 0 ? "text-destructive" : "text-green-700"
-                }
-              >
+              <span className={order.total_outstanding > 0 ? "text-destructive" : "text-green-700"}>
                 RM {Number(order.total_outstanding).toFixed(2)}
               </span>
             </div>
@@ -581,7 +412,7 @@ export default function OrderDetailPage({
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-sans text-lg font-semibold">
-            Books ({order.books.length})
+            Books ({order.order_books.length})
           </h2>
           {order.status === "active" && (
             <Button size="sm" variant="outline" onClick={() => setAddBooksOpen(true)}>
@@ -592,8 +423,8 @@ export default function OrderDetailPage({
         </div>
         <Card>
           <CardContent className="pt-4">
-            {order.books.map((book) => (
-              <BookRow key={book.id} book={book} />
+            {order.order_books.map((ob) => (
+              <OrderBookRow key={ob.id} ob={ob} orderId={Number(id)} />
             ))}
           </CardContent>
         </Card>
@@ -601,7 +432,6 @@ export default function OrderDetailPage({
 
       <AddBooksDialog
         orderId={Number(id)}
-        existingBookIds={order.books.map((b) => b.id)}
         open={addBooksOpen}
         onClose={() => setAddBooksOpen(false)}
       />
@@ -611,8 +441,7 @@ export default function OrderDetailPage({
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel order #{order.id}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will mark the order and all its books as cancelled. This
-              cannot be undone.
+              This will mark the order and all its book copies as cancelled. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

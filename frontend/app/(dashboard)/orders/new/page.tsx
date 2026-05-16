@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useCreateOrder } from "@/hooks/useOrders";
+import { useBooks } from "@/hooks/useBooks";
 import { PageShell } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,91 +16,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
-import { PostageType, BookStatus } from "@/lib/api";
-import { Plus, Trash2 } from "lucide-react";
-
-interface BookDraft {
-  title: string;
-  author: string;
-  status: BookStatus;
-  total_price: string;
-  deposit_amount: string;
-}
+import { PostageType } from "@/lib/api";
 
 const POSTAGE_OPTIONS: { value: PostageType; label: string }[] = [
-  { value: "premium", label: "Premium (RM 10)" },
-  { value: "hard_cover", label: "Hard Cover (RM 8)" },
-  { value: "soft_cover", label: "Soft Cover (RM 5)" },
+  { value: "semenanjung", label: "Semenanjung (RM 8)" },
+  { value: "sabah_sarawak", label: "Sabah / Sarawak (RM 16)" },
 ];
-
-const BOOK_STATUS_OPTIONS: { value: BookStatus; label: string }[] = [
-  { value: "deposit", label: "Deposit" },
-  { value: "paid", label: "Paid" },
-  { value: "bought", label: "Bought" },
-  { value: "under_delivery", label: "Under Delivery" },
-  { value: "delivered", label: "Delivered" },
-];
-
-function emptyBook(): BookDraft {
-  return {
-    title: "",
-    author: "",
-    status: "deposit",
-    total_price: "",
-    deposit_amount: "",
-  };
-}
 
 export default function NewOrderPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
 
-  // Step 1 — customer
   const [customerId, setCustomerId] = useState<number | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const { data: customers } = useCustomers(customerSearch || undefined);
 
-  // Step 2 — books
-  const [books, setBooks] = useState<BookDraft[]>([emptyBook()]);
+  const [steppers, setSteppers] = useState<Record<number, number>>({});
+  const { data: availableBooks } = useBooks();
 
-  // Step 3 — delivery
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
   const [postageType, setPostageType] = useState<PostageType | "">("");
 
   const createOrder = useCreateOrder();
 
-  function addBook() {
-    setBooks((prev) => [...prev, emptyBook()]);
+  function increment(id: number) {
+    setSteppers((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
   }
 
-  function removeBook(i: number) {
-    setBooks((prev) => prev.filter((_, idx) => idx !== i));
+  function decrement(id: number) {
+    setSteppers((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
   }
 
-  function updateBook(i: number, patch: Partial<BookDraft>) {
-    setBooks((prev) =>
-      prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b))
-    );
-  }
+  const totalSelected = Object.values(steppers).reduce((s, n) => s + n, 0);
 
   async function handleSubmit() {
-    if (!customerId) return;
+    if (!customerId || totalSelected === 0) return;
+    const copies = Object.entries(steppers)
+      .filter(([, qty]) => qty > 0)
+      .map(([id, qty]) => ({ book_id: Number(id), quantity: qty }));
     const order = await createOrder.mutateAsync({
       user_id: customerId,
       address,
       note: note || undefined,
       postage_type: postageType || undefined,
-      books: books.map((b) => ({
-        title: b.title,
-        author: b.author || undefined,
-        status: b.status,
-        price: {
-          total_price: b.total_price,
-          deposit_amount: b.deposit_amount || "0",
-        },
-      })),
+      copies,
     });
     router.push(`/orders/${order.id}`);
   }
@@ -108,7 +69,6 @@ export default function NewOrderPage() {
 
   return (
     <PageShell title="New Order">
-      {/* Step indicators */}
       <div className="flex items-center gap-2 text-sm">
         {["Customer", "Books", "Delivery"].map((label, i) => {
           const n = i + 1;
@@ -127,22 +87,15 @@ export default function NewOrderPage() {
               >
                 {n}
               </span>
-              <span
-                className={
-                  active ? "font-medium" : "text-muted-foreground"
-                }
-              >
+              <span className={active ? "font-medium" : "text-muted-foreground"}>
                 {label}
               </span>
-              {i < 2 && (
-                <span className="text-muted-foreground mx-1">→</span>
-              )}
+              {i < 2 && <span className="text-muted-foreground mx-1">→</span>}
             </span>
           );
         })}
       </div>
 
-      {/* Step 1: Customer */}
       {step === 1 && (
         <div className="space-y-4">
           <h2 className="font-medium">Select a customer</h2>
@@ -159,166 +112,87 @@ export default function NewOrderPage() {
                 type="button"
                 onClick={() => setCustomerId(c.id)}
                 className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
-                  customerId === c.id
-                    ? "border-primary bg-primary/5"
-                    : "hover:bg-accent"
+                  customerId === c.id ? "border-primary bg-primary/5" : "hover:bg-accent"
                 }`}
               >
                 <p className="font-medium text-sm">{c.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {c.phone_number}
-                </p>
+                <p className="text-xs text-muted-foreground">{c.phone_number}</p>
               </button>
             ))}
           </div>
           <div className="flex justify-end">
-            <Button
-              onClick={() => setStep(2)}
-              disabled={!customerId}
-            >
+            <Button onClick={() => setStep(2)} disabled={!customerId}>
               Next: Books
             </Button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Books */}
       {step === 2 && (
         <div className="space-y-4">
-          <h2 className="font-medium">
-            Books for {selectedCustomer?.name}
-          </h2>
-
-          <div className="space-y-4">
-            {books.map((book, i) => (
-              <Card key={i}>
-                <CardContent className="pt-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Book {i + 1}</span>
-                    {books.length > 1 && (
-                      <Button
+          <h2 className="font-medium">Select books for {selectedCustomer?.name}</h2>
+          {!availableBooks || availableBooks.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                No books in catalog. Add books on the Books page first.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {availableBooks.map((book) => {
+                const count = steppers[book.id] ?? 0;
+                return (
+                  <div
+                    key={book.id}
+                    className="flex items-center justify-between px-4 py-3 rounded-lg border"
+                  >
+                    <div className="min-w-0 flex-1 mr-3">
+                      <p className="font-medium text-sm">{book.title}</p>
+                      <p className="text-xs text-muted-foreground">{book.publisher_name}</p>
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        RM {Number(book.total_price).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
                         type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => removeBook(i)}
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => decrement(book.id)}
+                        disabled={count === 0}
+                        className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium disabled:opacity-30 hover:bg-accent transition-colors"
                       >
-                        <Trash2 size={14} />
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium">Title *</label>
-                      <Input
-                        required
-                        value={book.title}
-                        onChange={(e) =>
-                          updateBook(i, { title: e.target.value })
-                        }
-                        placeholder="Book title"
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium">Author</label>
-                      <Input
-                        value={book.author}
-                        onChange={(e) =>
-                          updateBook(i, { author: e.target.value })
-                        }
-                        placeholder="Author name"
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium">Status</label>
-                      <Select
-                        value={book.status}
-                        onValueChange={(v) =>
-                          updateBook(i, { status: v as BookStatus })
-                        }
+                        −
+                      </button>
+                      <span className="w-6 text-center text-sm tabular-nums">{count}</span>
+                      <button
+                        type="button"
+                        onClick={() => increment(book.id)}
+                        className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium hover:bg-accent transition-colors"
                       >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BOOK_STATUS_OPTIONS.map((s) => (
-                            <SelectItem
-                              key={s.value}
-                              value={s.value}
-                              className="text-sm"
-                            >
-                              {s.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium">
-                        Total price (RM) *
-                      </label>
-                      <Input
-                        required
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={book.total_price}
-                        onChange={(e) =>
-                          updateBook(i, { total_price: e.target.value })
-                        }
-                        placeholder="0.00"
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium">
-                        Deposit paid (RM)
-                      </label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={book.deposit_amount}
-                        onChange={(e) =>
-                          updateBook(i, { deposit_amount: e.target.value })
-                        }
-                        placeholder="0.00"
-                        className="h-8 text-sm"
-                      />
+                        +
+                      </button>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <Button type="button" variant="outline" size="sm" onClick={addBook}>
-            <Plus size={14} className="mr-1" />
-            Add book
-          </Button>
-
+                );
+              })}
+            </div>
+          )}
+          {totalSelected > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {totalSelected} cop{totalSelected !== 1 ? "ies" : "y"} selected
+            </p>
+          )}
           <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep(1)}>
-              Back
-            </Button>
-            <Button
-              onClick={() => setStep(3)}
-              disabled={books.some((b) => !b.title || !b.total_price)}
-            >
+            <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+            <Button onClick={() => setStep(3)} disabled={totalSelected === 0}>
               Next: Delivery
             </Button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Delivery */}
       {step === 3 && (
         <div className="space-y-4">
           <h2 className="font-medium">Delivery details</h2>
-
           <div className="space-y-3 max-w-md">
             <div className="space-y-1">
               <label className="text-sm font-medium">Address *</label>
@@ -330,7 +204,6 @@ export default function NewOrderPage() {
                 rows={3}
               />
             </div>
-
             <div className="space-y-1">
               <label className="text-sm font-medium">Note</label>
               <Textarea
@@ -340,12 +213,11 @@ export default function NewOrderPage() {
                 rows={2}
               />
             </div>
-
             <div className="space-y-1">
               <label className="text-sm font-medium">Postage type</label>
               <Select
                 value={postageType}
-                onValueChange={(v) => setPostageType(v as PostageType)}
+                onValueChange={(v) => v && setPostageType(v as PostageType)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select postage…" />
@@ -360,11 +232,8 @@ export default function NewOrderPage() {
               </Select>
             </div>
           </div>
-
           <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep(2)}>
-              Back
-            </Button>
+            <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
             <Button
               onClick={handleSubmit}
               disabled={!address || createOrder.isPending}
@@ -372,11 +241,8 @@ export default function NewOrderPage() {
               {createOrder.isPending ? "Creating…" : "Create order"}
             </Button>
           </div>
-
           {createOrder.isError && (
-            <p className="text-destructive text-sm">
-              Failed to create order. Please try again.
-            </p>
+            <p className="text-destructive text-sm">Failed to create order. Please try again.</p>
           )}
         </div>
       )}
