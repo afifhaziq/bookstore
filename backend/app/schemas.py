@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from decimal import Decimal
@@ -62,13 +62,26 @@ class OrderCreate(BaseModel):
     postage_type: Optional[PostageType] = None
     address: str
     note: Optional[str] = None
-    books: list[BookCreate]
+    book_ids: list[int]
 
 
 class OrderUpdate(BaseModel):
     postage_type: Optional[PostageType] = None
     address: Optional[str] = None
     note: Optional[str] = None
+
+
+class NewBookSpec(BaseModel):
+    title: str
+    author: Optional[str] = None
+    total_price: Decimal
+    deposit_amount: Decimal = Decimal("0")
+    quantity: int = Field(1, ge=1, le=50)
+
+
+class AddBooksToOrderRequest(BaseModel):
+    book_ids: list[int] = []
+    new_books: list[NewBookSpec] = []
 
 
 class OrderResponse(BaseModel):
@@ -87,6 +100,8 @@ class OrderDetail(OrderResponse):
     books: list[BookResponse]
     postage_charge: Optional[float]
     total_outstanding: float
+    customer_name: str
+    customer_phone: str
 
 
 class CustomerDetail(CustomerResponse):
