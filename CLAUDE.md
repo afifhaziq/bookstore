@@ -33,8 +33,8 @@ uv add <package>                           # add dependency
 
 ### Architecture
 
-- **`app/main.py`** — FastAPI app with CORS for `localhost:3000`. Mounts four routers: `/customers`, `/orders`, `/books`, `/dashboard`.
-- **`app/models.py`** — SQLAlchemy ORM. Five tables: `users`, `orders`, `books`, `prices`, `order_books`. All `Enum` columns use `native_enum=False` for SQLite test compatibility.
+- **`app/main.py`** — FastAPI app with CORS for `localhost:3000`. Mounts five routers: `/customers`, `/orders`, `/books`, `/publishers`, `/dashboard`.
+- **`app/models.py`** — SQLAlchemy ORM. Five tables: `users`, `publishers`, `books`, `orders`, `order_books`. All `Enum` columns use `native_enum=False` for SQLite test compatibility.
 - **`app/schemas.py`** — Pydantic request/response models.
 - **`app/database.py`** — Async SQLAlchemy engine. Uses `connect_args={"ssl": "require"}` for Postgres (Supabase), no SSL for SQLite.
 - **`app/auth.py`** — Supabase JWT verification via JWKS (RS256). In-memory JWKS cache with key-rotation retry. Overridden in tests via `dependency_overrides`.
@@ -52,9 +52,19 @@ SUPABASE_URL=https://<project>.supabase.co
 
 ### Data Model
 
-Postage rates: premium RM10, hard_cover RM8, soft_cover RM5.  
-`Price` is a 1:1 child of `Book` (separate table) storing `total_price`, `deposit_amount`; `outstanding_amount` is a computed property.  
-`OrderBook` is the many-to-many join between `orders` and `books`.
+**Enums**: `BookStatus` (deposit/paid/bought/under_delivery/delivered/cancelled), `OrderStatus` (active/cancelled), `PostageType` (semenanjung/sabah_sarawak), `PsChargeType` (premium/hard_cover/soft_cover).
+
+**Constants**: `POSTAGE_DEFAULTS = {semenanjung: 8.00, sabah_sarawak: 16.00}`, `PS_CHARGE_RATES = {premium: 10.00, hard_cover: 8.00, soft_cover: 5.00}`.
+
+`Publisher` is a catalog of publishers (id, name unique). `Book` is a catalog entry linked to a publisher (publisher_id FK, ps_charge, total_price, deposit_amount) — no per-book status. `OrderBook` is the per-copy join record with its own auto-increment PK, per-copy `status` (BookStatus) and `deposit_amount`. `Order` has `postage_type` and `postage_amount` (nullable Numeric; auto-filled from POSTAGE_DEFAULTS when type is set without explicit amount).
+
+**Outstanding per copy**: `book.total_price - order_book.deposit_amount`. When an `OrderBook` is created, its `deposit_amount` is initialized from `book.deposit_amount`.
+
+**Books-first workflow**: Books are catalog entries created first (via `POST /books/` with publisher_id + ps_charge + prices). Orders are created with `copies: list[{book_id, quantity}]` — each spec creates `quantity` separate `OrderBook` rows. Additional copies added via `POST /orders/{id}/books` with `{"copies": [...]}`. Per-copy status/deposit updated via `PATCH /orders/{order_id}/books/{ob_id}`.
+
+`OrderDetail` includes denormalized `customer_name`, `customer_phone` from the related `User`, and `order_books: list[OrderBookResponse]`.
+
+`_build_order_book_response` is defined in `customers.py` and imported by `orders.py` and `dashboard.py`.
 
 ## Frontend
 
@@ -75,11 +85,11 @@ npm run lint       # ESLint
 - **`app/(dashboard)/layout.tsx`** — Auth guard: checks session on mount, redirects to `/login` if none. Renders `<Sidebar>` + `<main>`.
 - **`app/(dashboard)/dashboard/page.tsx`** — Book status counts + outstanding books table.
 - **`app/(dashboard)/customers/`** — List with search + Add dialog; `[id]` shows customer orders.
-- **`app/(dashboard)/orders/`** — List; `[id]` has inline editing of book status/deposit, cancel, address edit; `new/` is a 3-step stepper.
+- **`app/(dashboard)/orders/`** — List; `[id]` has inline editing of book status/deposit, cancel, address edit; `new/` is a 3-step stepper (customer → select existing books → delivery details).
 - **`app/(dashboard)/books/page.tsx`** — Filterable books table with delete.
 - **`lib/api.ts`** — Typed API client. `request<T>()` attaches `Authorization: Bearer <token>` from Supabase session. All CRUD functions live here.
 - **`lib/auth.ts`** — Thin wrappers around `supabase.auth`: `signIn`, `signOut`, `getSession`, `getAccessToken`.
-- **`hooks/`** — TanStack Query hooks (`useBooks`, `useCustomers`, `useOrders`, `useDashboard`) with cache invalidation on mutations.
+- **`hooks/`** — TanStack Query hooks (`useBooks`, `useCreateBook`, `useDeleteBook`, `usePublishers`, `useCreatePublisher`, `useCustomers`, `useOrders`, `useCreateOrder`, `useUpdateOrder`, `useAddCopiesToOrder`, `useUpdateOrderBook`, `useCancelOrder`, `useDashboard`) with cache invalidation on mutations.
 - **`providers/QueryProvider.tsx`** — `QueryClient` with `staleTime: 30s`, `retry: 1`.
 
 ### Key Constraints

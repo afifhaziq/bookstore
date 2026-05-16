@@ -1,6 +1,6 @@
 // ============================================================
-// Bookstore Inventory Management System
-// Personal Shopper — Buy & Deliver
+// Jaslin's Pages - Inventory Management System
+// Personal Shopper - Buy & Deliver
 // ============================================================
 
 // --- Enums ---------------------------------------------------
@@ -11,7 +11,7 @@ Enum book_status {
   bought         [note: 'Book purchased by shopper']
   under_delivery [note: 'In transit to customer']
   delivered      [note: 'Received by customer']
-  cancelled      [note: 'Order was cancelled']
+  cancelled      [note: 'Copy was cancelled']
 }
 
 Enum order_status {
@@ -20,6 +20,11 @@ Enum order_status {
 }
 
 Enum postage_type {
+  semenanjung   [note: 'default RM8']
+  sabah_sarawak [note: 'default RM16']
+}
+
+Enum ps_charge_type {
   premium    [note: 'RM10']
   hard_cover [note: 'RM8']
   soft_cover [note: 'RM5']
@@ -36,60 +41,64 @@ Table users {
   note: 'Customers who place orders'
 }
 
-// Auth is handled by Supabase Auth — no custom auth table needed
+// Auth is handled by Supabase Auth - no custom auth table needed
 
 Table orders {
-  id           integer      [pk, increment]
-  user_id      integer      [not null]
-  status       order_status [not null, default: 'active']
-  postage_type postage_type                // optional; null = no postage charge
-  address      varchar      [not null]
-  note         text
-  created_at   timestamp    [default: `now()`]
-  updated_at   timestamp
+  id             integer         [pk, increment]
+  user_id        integer         [not null]
+  status         order_status    [not null, default: 'active']
+  postage_type   postage_type
+  postage_amount "decimal(10,2)"
+  address        varchar         [not null]
+  note           text
+  created_at     timestamp       [default: `now()`]
+  updated_at     timestamp
 
-  note: 'One user can have many orders (one-to-many)'
+  note: 'postage_amount defaults to RM8 (semenanjung) or RM16 (sabah_sarawak) when postage_type is selected, but can be overridden. Null means no postage charged.'
 }
 
-// --- Book & Pricing ------------------------------------------
+// --- Publisher -----------------------------------------------
+
+Table publishers {
+  id         integer   [pk, increment]
+  name       varchar   [not null, unique]
+  created_at timestamp [default: `now()`]
+
+  note: 'One publisher can publish many books'
+}
+
+// --- Book Catalog --------------------------------------------
 
 Table books {
-  id         integer     [pk, increment]
-  title      varchar     [not null]
-  author     varchar
-  status     book_status [not null, default: 'deposit']
-  created_at timestamp   [default: `now()`]
-  updated_at timestamp
-
-  note: 'Each row is a specific copy/instance ordered by a customer'
-}
-
-Table prices {
   id             integer         [pk, increment]
-  book_id        integer         [unique, not null]  // one-to-one with books
+  title          varchar         [not null]
+  publisher_id   integer         [not null]
+  ps_charge      ps_charge_type  [not null]
   total_price    "decimal(10,2)" [not null]
   deposit_amount "decimal(10,2)" [not null, default: 0]
-  // outstanding_amount is derived: total_price - deposit_amount
+  created_at     timestamp       [default: `now()`]
+  updated_at     timestamp
 
-  note: 'One price record per book; outstanding = total_price - deposit_amount'
+  note: 'Catalog of unique books. One row per distinct title.'
 }
 
-// --- Junction Table (User <-> Books via Orders) --------------
+// --- Order Line Items (one row per copy) ---------------------
 
 Table order_books {
-  order_id integer [not null]
-  book_id  integer [not null]
+  id             integer         [pk, increment]
+  order_id       integer         [not null]
+  book_id        integer         [not null]
+  status         book_status     [not null, default: 'deposit']
+  deposit_amount "decimal(10,2)" [not null, default: 0]
+  created_at     timestamp       [default: `now()`]
+  updated_at     timestamp
 
-  indexes {
-    (order_id, book_id) [pk]
-  }
-
-  note: 'Bridges orders and books; user-books many-to-many is resolved through users -> orders -> order_books -> books'
+  note: 'One row per copy of a book in an order. Status and deposit tracked per copy. Outstanding = books.total_price - order_books.deposit_amount'
 }
 
 // --- Relationships -------------------------------------------
 
-Ref: orders.user_id       > users.id         // many-to-one (user has many orders)
-Ref: prices.book_id       - books.id         // one-to-one
-Ref: order_books.order_id > orders.id        // many-to-one
-Ref: order_books.book_id  > books.id         // many-to-one
+Ref: orders.user_id          > users.id        // many-to-one
+Ref: books.publisher_id      > publishers.id   // many-to-one
+Ref: order_books.order_id    > orders.id       // many-to-one
+Ref: order_books.book_id     > books.id        // many-to-one
