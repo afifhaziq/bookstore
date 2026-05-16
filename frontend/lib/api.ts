@@ -34,22 +34,39 @@ export type BookStatus =
   | "cancelled";
 
 export type OrderStatus = "active" | "cancelled";
-export type PostageType = "premium" | "hard_cover" | "soft_cover";
+export type PostageType = "semenanjung" | "sabah_sarawak";
+export type PsChargeType = "premium" | "hard_cover" | "soft_cover";
 
-export interface Price {
-  total_price: number;
-  deposit_amount: number;
-  outstanding_amount: number;
+export interface Publisher {
+  id: number;
+  name: string;
+  created_at: string;
 }
 
 export interface Book {
   id: number;
   title: string;
-  author: string | null;
-  status: BookStatus;
+  publisher_id: number;
+  publisher_name: string;
+  ps_charge: PsChargeType;
+  total_price: number;
+  deposit_amount: number;
   created_at: string;
   updated_at: string | null;
-  price: Price | null;
+}
+
+export interface OrderBook {
+  id: number;
+  book_id: number;
+  title: string;
+  publisher_name: string;
+  ps_charge: PsChargeType;
+  total_price: number;
+  status: BookStatus;
+  deposit_amount: number;
+  outstanding_amount: number;
+  created_at: string;
+  updated_at: string | null;
 }
 
 export interface Order {
@@ -57,12 +74,12 @@ export interface Order {
   user_id: number;
   status: OrderStatus;
   postage_type: PostageType | null;
+  postage_amount: number | null;
   address: string;
   note: string | null;
   created_at: string;
   updated_at: string | null;
-  books: Book[];
-  postage_charge: number | null;
+  order_books: OrderBook[];
   total_outstanding: number;
   customer_name: string;
   customer_phone: string;
@@ -87,15 +104,12 @@ export interface BookStatusCount {
 export interface Dashboard {
   book_status_counts: BookStatusCount[];
   total_outstanding: number;
-  books_with_outstanding: Book[];
+  copies_with_outstanding: OrderBook[];
 }
 
-export interface NewBookSpec {
-  title: string;
-  author?: string;
-  total_price: string;
-  deposit_amount?: string;
-  quantity?: number;
+export interface CopySpec {
+  book_id: number;
+  quantity: number;
 }
 
 // ---- API functions ----
@@ -103,6 +117,15 @@ export interface NewBookSpec {
 export const api = {
   dashboard: {
     get: () => request<Dashboard>("/dashboard/"),
+  },
+
+  publishers: {
+    list: () => request<Publisher[]>("/publishers/"),
+    create: (data: { name: string }) =>
+      request<Publisher>("/publishers/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
   },
 
   customers: {
@@ -126,45 +149,45 @@ export const api = {
       address: string;
       note?: string;
       postage_type?: PostageType;
-      book_ids: number[];
+      postage_amount?: string;
+      copies: CopySpec[];
     }) =>
       request<Order>("/orders/", { method: "POST", body: JSON.stringify(data) }),
-    update: (id: number, data: { address?: string; note?: string; postage_type?: PostageType }) =>
+    update: (id: number, data: { address?: string; note?: string; postage_type?: PostageType; postage_amount?: string }) =>
       request<Order>(`/orders/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
-    addBooks: (id: number, payload: { book_ids?: number[]; new_books?: NewBookSpec[] }) =>
+    addCopies: (id: number, copies: CopySpec[]) =>
       request<Order>(`/orders/${id}/books`, {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ copies }),
+      }),
+    updateOrderBook: (orderId: number, obId: number, data: { status?: BookStatus; deposit_amount?: string }) =>
+      request<Order>(`/orders/${orderId}/books/${obId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
       }),
     cancel: (id: number) =>
       request<Order>(`/orders/${id}/cancel`, { method: "PATCH" }),
   },
 
   books: {
-    list: (params?: { status?: BookStatus; outstanding_only?: boolean; unlinked?: boolean }) => {
-      const qs = new URLSearchParams();
-      if (params?.status) qs.set("status", params.status);
-      if (params?.outstanding_only) qs.set("outstanding_only", "true");
-      if (params?.unlinked) qs.set("unlinked", "true");
-      const q = qs.toString();
-      return request<Book[]>(`/books/${q ? `?${q}` : ""}`);
-    },
+    list: () => request<Book[]>("/books/"),
     create: (data: {
       title: string;
-      author?: string;
-      status?: BookStatus;
-      price: { total_price: string; deposit_amount: string };
+      publisher_id: number;
+      ps_charge: PsChargeType;
+      total_price: string;
+      deposit_amount?: string;
     }) =>
       request<Book>("/books/", { method: "POST", body: JSON.stringify(data) }),
     update: (
       id: number,
       data: {
         title?: string;
-        author?: string;
-        status?: BookStatus;
+        publisher_id?: number;
+        ps_charge?: PsChargeType;
         total_price?: string;
         deposit_amount?: string;
       }

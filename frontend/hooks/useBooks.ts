@@ -1,27 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, BookStatus } from "@/lib/api";
+import { api } from "@/lib/api";
 
-export function useBooks(params?: { status?: BookStatus; outstanding_only?: boolean }) {
+export function useBooks() {
   return useQuery({
-    queryKey: ["books", params],
-    queryFn: () => api.books.list(params),
+    queryKey: ["books"],
+    queryFn: api.books.list,
+  });
+}
+
+export function useCreateBook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.books.create,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["books"] });
+    },
   });
 }
 
 export function useUpdateBook(id: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: {
-      title?: string;
-      author?: string;
-      status?: BookStatus;
-      total_price?: string;
-      deposit_amount?: string;
-    }) => api.books.update(id, data),
+    mutationFn: (data: Parameters<typeof api.books.update>[1]) =>
+      api.books.update(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["books"] });
-      qc.invalidateQueries({ queryKey: ["orders"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }
@@ -32,7 +35,6 @@ export function useDeleteBook() {
     mutationFn: api.books.delete,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["books"] });
-      qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });

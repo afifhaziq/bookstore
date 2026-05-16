@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, PostageType, BookStatus, NewBookSpec } from "@/lib/api";
+import { api, PostageType, CopySpec, BookStatus } from "@/lib/api";
 
 export function useOrders() {
   return useQuery({
@@ -30,7 +30,7 @@ export function useCreateOrder() {
 export function useUpdateOrder(id: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { address?: string; note?: string; postage_type?: PostageType }) =>
+    mutationFn: (data: { address?: string; note?: string; postage_type?: PostageType; postage_amount?: string }) =>
       api.orders.update(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orders", id] });
@@ -39,15 +39,25 @@ export function useUpdateOrder(id: number) {
   });
 }
 
-export function useAddBooksToOrder(orderId: number) {
+export function useAddCopiesToOrder(orderId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { book_ids?: number[]; new_books?: NewBookSpec[] }) =>
-      api.orders.addBooks(orderId, payload),
+    mutationFn: (copies: CopySpec[]) => api.orders.addCopies(orderId, copies),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orders", orderId] });
       qc.invalidateQueries({ queryKey: ["orders"] });
-      qc.invalidateQueries({ queryKey: ["books"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useUpdateOrderBook(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ obId, data }: { obId: number; data: { status?: BookStatus; deposit_amount?: string } }) =>
+      api.orders.updateOrderBook(orderId, obId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["orders", orderId] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
