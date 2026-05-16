@@ -21,7 +21,7 @@ const fontMono = IBM_Plex_Mono({
   weight: ["400", "500"],
 });
 
-export const metadata: Metadata = { title: "Bookstore Inventory" };
+export const metadata: Metadata = { title: "Jaslin's Pages" };
 
 const themeScript = `(function(){var t=localStorage.getItem('theme'),d=window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(t===null&&d))document.documentElement.classList.add('dark');})();`;
 

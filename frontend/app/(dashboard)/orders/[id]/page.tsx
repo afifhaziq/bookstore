@@ -64,8 +64,8 @@ function AddBooksDialog({
 
   const [tab, setTab] = useState<"existing" | "new">("existing");
 
-  // existing-tab state
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  // existing-tab state: how many copies to add per book
+  const [steppers, setSteppers] = useState<Record<number, number>>({});
 
   // new-tab state
   const [title, setTitle] = useState("");
@@ -74,18 +74,19 @@ function AddBooksDialog({
   const [deposit, setDeposit] = useState("0");
   const [quantity, setQuantity] = useState(1);
 
-  const available = (allBooks ?? []).filter((b) => !existingBookIds.includes(b.id));
+  const books = allBooks ?? [];
+  const totalToAdd = Object.values(steppers).reduce((s, n) => s + n, 0);
 
-  function toggle(id: number) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  function increment(id: number) {
+    setSteppers((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+  }
+
+  function decrement(id: number) {
+    setSteppers((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
   }
 
   function resetForm() {
-    setSelected(new Set());
+    setSteppers({});
     setTitle("");
     setAuthor("");
     setTotalPrice("");
@@ -100,8 +101,39 @@ function AddBooksDialog({
   }
 
   async function handleAddExisting() {
-    if (selected.size === 0) return;
-    await addBooks.mutateAsync({ book_ids: Array.from(selected) });
+    if (totalToAdd === 0) return;
+    const bookIdsToAdd: number[] = [];
+    const newBookSpecs: { title: string; author?: string; total_price: string; deposit_amount: string; quantity: number }[] = [];
+
+    for (const [idStr, delta] of Object.entries(steppers)) {
+      if (delta === 0) continue;
+      const bookId = Number(idStr);
+      const book = books.find((b) => b.id === bookId);
+      if (!book?.price) continue;
+      const inOrder = existingBookIds.includes(bookId);
+      if (!inOrder) {
+        bookIdsToAdd.push(bookId);
+        if (delta > 1) {
+          newBookSpecs.push({
+            title: book.title,
+            author: book.author ?? undefined,
+            total_price: String(book.price.total_price),
+            deposit_amount: String(book.price.deposit_amount),
+            quantity: delta - 1,
+          });
+        }
+      } else {
+        newBookSpecs.push({
+          title: book.title,
+          author: book.author ?? undefined,
+          total_price: String(book.price.total_price),
+          deposit_amount: String(book.price.deposit_amount),
+          quantity: delta,
+        });
+      }
+    }
+
+    await addBooks.mutateAsync({ book_ids: bookIdsToAdd, new_books: newBookSpecs });
     resetForm();
     onClose();
   }
@@ -157,37 +189,57 @@ function AddBooksDialog({
         </div>
 
         {tab === "existing" ? (
-          available.length === 0 ? (
+          books.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">
-              No available books. Add books from the Books page first.
+              No books found. Add books from the Books page first.
             </p>
           ) : (
             <div className="space-y-2 max-h-72 overflow-y-auto">
-              {available.map((book) => {
-                const sel = selected.has(book.id);
+              {books.map((book) => {
+                const count = steppers[book.id] ?? 0;
+                const inOrder = existingBookIds.includes(book.id);
                 return (
-                  <button
+                  <div
                     key={book.id}
-                    type="button"
-                    onClick={() => toggle(book.id)}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
-                      sel ? "border-primary bg-primary/5" : "hover:bg-accent"
-                    }`}
+                    className="flex items-center justify-between px-4 py-3 rounded-lg border"
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
+                    <div className="min-w-0 flex-1 mr-3">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-sm">{book.title}</p>
-                        {book.author && (
-                          <p className="text-xs text-muted-foreground">{book.author}</p>
+                        {inOrder && (
+                          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            in order
+                          </span>
                         )}
                       </div>
+                      {book.author && (
+                        <p className="text-xs text-muted-foreground">{book.author}</p>
+                      )}
                       {book.price && (
-                        <span className="text-xs text-muted-foreground tabular-nums">
+                        <p className="text-xs text-muted-foreground tabular-nums">
                           RM {Number(book.price.total_price).toFixed(2)}
-                        </span>
+                        </p>
                       )}
                     </div>
-                  </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => decrement(book.id)}
+                        disabled={count === 0}
+                        className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium disabled:opacity-30 hover:bg-accent transition-colors"
+                      >
+                        −
+                      </button>
+                      <span className="w-6 text-center text-sm tabular-nums">{count}</span>
+                      <button
+                        type="button"
+                        onClick={() => increment(book.id)}
+                        className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium hover:bg-accent transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -260,11 +312,11 @@ function AddBooksDialog({
           {tab === "existing" ? (
             <Button
               onClick={handleAddExisting}
-              disabled={selected.size === 0 || addBooks.isPending}
+              disabled={totalToAdd === 0 || addBooks.isPending}
             >
               {addBooks.isPending
                 ? "Adding…"
-                : `Add ${selected.size > 0 ? selected.size : ""} Book${selected.size !== 1 ? "s" : ""}`}
+                : `Add ${totalToAdd > 0 ? totalToAdd : ""} Book${totalToAdd !== 1 ? "s" : ""}`}
             </Button>
           ) : (
             <Button
