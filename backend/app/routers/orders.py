@@ -1,12 +1,13 @@
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.auth import get_current_user
-from app.models import Order, Book, Price, OrderBook, OrderStatus, BookStatus, User
-from app.schemas import OrderCreate, OrderUpdate, OrderDetail, AddBooksToOrderRequest
-from app.routers.customers import _build_order_detail
+from app.models import Order, Book, OrderBook, OrderStatus, BookStatus, POSTAGE_DEFAULTS
+from app.schemas import OrderCreate, OrderUpdate, OrderDetail, AddCopiesToOrderRequest, OrderBookUpdate
+from app.routers.customers import _build_order_detail, _build_order_book_response
 
 router = APIRouter()
 
@@ -18,7 +19,7 @@ async def _load_order(order_id: int, db: AsyncSession) -> Order:
             selectinload(Order.user),
             selectinload(Order.order_books)
             .selectinload(OrderBook.book)
-            .selectinload(Book.price),
+            .selectinload(Book.publisher),
         )
         .where(Order.id == order_id)
     )
@@ -28,24 +29,29 @@ async def _load_order(order_id: int, db: AsyncSession) -> Order:
     return order
 
 
+async def _validate_and_add_copies(order_id: int, copies, db: AsyncSession):
+    for spec in copies:
+        result = await db.execute(select(Book).where(Book.id == spec.book_id))
+        book = result.scalar_one_or_none()
+        if not book:
+            raise HTTPException(status_code=404, detail=f"Book {spec.book_id} not found")
+        for _ in range(spec.quantity):
+            db.add(OrderBook(order_id=order_id, book_id=spec.book_id, deposit_amount=book.deposit_amount))
+
+
 @router.get("/", response_model=list[OrderDetail])
 async def list_orders(
-    status: str | None = None,
-    postage_type: str | None = None,
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_current_user),
 ):
-    query = select(Order).options(
-        selectinload(Order.user),
-        selectinload(Order.order_books)
-        .selectinload(OrderBook.book)
-        .selectinload(Book.price),
+    result = await db.execute(
+        select(Order).options(
+            selectinload(Order.user),
+            selectinload(Order.order_books)
+            .selectinload(OrderBook.book)
+            .selectinload(Book.publisher),
+        )
     )
-    if status:
-        query = query.where(Order.status == status)
-    if postage_type:
-        query = query.where(Order.postage_type == postage_type)
-    result = await db.execute(query)
     return [_build_order_detail(o) for o in result.scalars().all()]
 
 
@@ -55,24 +61,24 @@ async def create_order(
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_current_user),
 ):
+    postage_amount = data.postage_amount
+    if postage_amount is None and data.postage_type is not None:
+        postage_amount = Decimal(str(POSTAGE_DEFAULTS[data.postage_type]))
+
     order = Order(
         user_id=data.user_id,
         postage_type=data.postage_type,
+        postage_amount=postage_amount,
         address=data.address,
         note=data.note,
     )
     db.add(order)
     await db.flush()
-
-    for book_id in data.book_ids:
-        result = await db.execute(select(Book).where(Book.id == book_id))
-        book = result.scalar_one_or_none()
-        if not book:
-            raise HTTPException(status_code=404, detail=f"Book {book_id} not found")
-        db.add(OrderBook(order_id=order.id, book_id=book_id))
-
+    order_id = order.id
+    await _validate_and_add_copies(order_id, data.copies, db)
     await db.commit()
-    return _build_order_detail(await _load_order(order.id, db))
+    db.expire(order)
+    return _build_order_detail(await _load_order(order_id, db))
 
 
 @router.get("/{order_id}", response_model=OrderDetail)
@@ -92,44 +98,49 @@ async def update_order(
     _: str = Depends(get_current_user),
 ):
     order = await _load_order(order_id, db)
-    for field, value in data.model_dump(exclude_none=True).items():
+    update_data = data.model_dump(exclude_none=True)
+    if "postage_type" in update_data and "postage_amount" not in update_data:
+        update_data["postage_amount"] = Decimal(str(POSTAGE_DEFAULTS[update_data["postage_type"]]))
+    for field, value in update_data.items():
         setattr(order, field, value)
     await db.commit()
+    db.expire(order)
     return _build_order_detail(await _load_order(order_id, db))
 
 
 @router.post("/{order_id}/books", response_model=OrderDetail)
-async def add_books_to_order(
+async def add_copies_to_order(
     order_id: int,
-    data: AddBooksToOrderRequest,
+    data: AddCopiesToOrderRequest,
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_current_user),
 ):
     order = await _load_order(order_id, db)
     if order.status != OrderStatus.active:
         raise HTTPException(status_code=400, detail="Cannot add books to a cancelled order")
-
-    existing_book_ids = {ob.book_id for ob in order.order_books}
-
-    for book_id in data.book_ids:
-        if book_id in existing_book_ids:
-            continue
-        result = await db.execute(select(Book).where(Book.id == book_id))
-        book = result.scalar_one_or_none()
-        if not book:
-            raise HTTPException(status_code=404, detail=f"Book {book_id} not found")
-        db.add(OrderBook(order_id=order_id, book_id=book_id))
-
-    for spec in data.new_books:
-        for _ in range(spec.quantity):
-            book = Book(title=spec.title, author=spec.author)
-            db.add(book)
-            await db.flush()
-            db.add(Price(book_id=book.id, total_price=spec.total_price, deposit_amount=spec.deposit_amount))
-            db.add(OrderBook(order_id=order_id, book_id=book.id))
-
+    await _validate_and_add_copies(order_id, data.copies, db)
     await db.commit()
     db.expire(order)
+    return _build_order_detail(await _load_order(order_id, db))
+
+
+@router.patch("/{order_id}/books/{ob_id}", response_model=OrderDetail)
+async def update_order_book(
+    order_id: int,
+    ob_id: int,
+    data: OrderBookUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(OrderBook).where(OrderBook.id == ob_id, OrderBook.order_id == order_id)
+    )
+    ob = result.scalar_one_or_none()
+    if not ob:
+        raise HTTPException(status_code=404, detail="Order book entry not found")
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(ob, field, value)
+    await db.commit()
     return _build_order_detail(await _load_order(order_id, db))
 
 
@@ -142,6 +153,7 @@ async def cancel_order(
     order = await _load_order(order_id, db)
     order.status = OrderStatus.cancelled
     for ob in order.order_books:
-        ob.book.status = BookStatus.cancelled
+        ob.status = BookStatus.cancelled
     await db.commit()
+    db.expire(order)
     return _build_order_detail(await _load_order(order_id, db))

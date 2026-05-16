@@ -4,15 +4,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.auth import get_current_user
-from app.models import Book, Price, OrderBook, Order, OrderStatus
-from app.schemas import BookUpdate, BookResponse, PriceResponse
+from app.models import Book, Publisher, OrderBook, Order, OrderStatus
+from app.schemas import BookCreate, BookUpdate, BookResponse
 
 router = APIRouter()
 
 
 async def _load_book(book_id: int, db: AsyncSession) -> Book:
     result = await db.execute(
-        select(Book).options(selectinload(Book.price)).where(Book.id == book_id)
+        select(Book)
+        .options(selectinload(Book.publisher))
+        .where(Book.id == book_id)
     )
     book = result.scalar_one_or_none()
     if not book:
@@ -24,35 +26,46 @@ def _book_response(book: Book) -> BookResponse:
     return BookResponse(
         id=book.id,
         title=book.title,
-        author=book.author,
-        status=book.status,
+        publisher_id=book.publisher_id,
+        publisher_name=book.publisher.name,
+        ps_charge=book.ps_charge,
+        total_price=book.total_price,
+        deposit_amount=book.deposit_amount,
         created_at=book.created_at,
         updated_at=book.updated_at,
-        price=PriceResponse(
-            total_price=book.price.total_price,
-            deposit_amount=book.price.deposit_amount,
-            outstanding_amount=book.price.outstanding_amount,
-        )
-        if book.price
-        else None,
     )
+
+
+@router.post("/", response_model=BookResponse, status_code=201)
+async def create_book(
+    data: BookCreate,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_current_user),
+):
+    pub = await db.get(Publisher, data.publisher_id)
+    if not pub:
+        raise HTTPException(status_code=404, detail="Publisher not found")
+    book = Book(
+        title=data.title,
+        publisher_id=data.publisher_id,
+        ps_charge=data.ps_charge,
+        total_price=data.total_price,
+        deposit_amount=data.deposit_amount,
+    )
+    db.add(book)
+    await db.commit()
+    return _book_response(await _load_book(book.id, db))
 
 
 @router.get("/", response_model=list[BookResponse])
 async def list_books(
-    status: str | None = None,
-    outstanding_only: bool = False,
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_current_user),
 ):
-    query = select(Book).options(selectinload(Book.price))
-    if status:
-        query = query.where(Book.status == status)
-    result = await db.execute(query)
-    books = result.scalars().all()
-    if outstanding_only:
-        books = [b for b in books if b.price and b.price.outstanding_amount > 0]
-    return [_book_response(b) for b in books]
+    result = await db.execute(
+        select(Book).options(selectinload(Book.publisher)).order_by(Book.created_at.desc())
+    )
+    return [_book_response(b) for b in result.scalars().all()]
 
 
 @router.patch("/{book_id}", response_model=BookResponse)
@@ -63,17 +76,15 @@ async def update_book(
     _: str = Depends(get_current_user),
 ):
     book = await _load_book(book_id, db)
-    if data.title is not None:
-        book.title = data.title
-    if data.author is not None:
-        book.author = data.author
-    if data.status is not None:
-        book.status = data.status
-    if book.price:
-        if data.total_price is not None:
-            book.price.total_price = data.total_price
-        if data.deposit_amount is not None:
-            book.price.deposit_amount = data.deposit_amount
+    if data.publisher_id is not None:
+        pub = await db.get(Publisher, data.publisher_id)
+        if not pub:
+            raise HTTPException(status_code=404, detail="Publisher not found")
+        book.publisher_id = data.publisher_id
+    for field in ("title", "ps_charge", "total_price", "deposit_amount"):
+        val = getattr(data, field)
+        if val is not None:
+            setattr(book, field, val)
     await db.commit()
     return _book_response(await _load_book(book_id, db))
 
@@ -89,15 +100,11 @@ async def delete_book(
         .options(selectinload(OrderBook.order))
         .where(OrderBook.book_id == book_id)
     )
-    ob = result.scalar_one_or_none()
-    if ob and ob.order.status != OrderStatus.active:
+    ob = result.scalars().first()
+    if ob and ob.order.status == OrderStatus.active:
         raise HTTPException(
-            status_code=400, detail="Cannot delete book from a cancelled order"
+            status_code=400, detail="Cannot delete a book that is part of an active order"
         )
     book = await _load_book(book_id, db)
-    # Remove junction row first to avoid FK constraint on delete
-    if ob:
-        await db.delete(ob)
-        await db.flush()
     await db.delete(book)
     await db.commit()

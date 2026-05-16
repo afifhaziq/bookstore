@@ -4,56 +4,52 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.auth import get_current_user
-from app.models import User, Order, OrderBook, Book, POSTAGE_RATES
+from app.models import User, Order, OrderBook, Book
 from app.schemas import (
     CustomerCreate,
     CustomerResponse,
     CustomerDetail,
     OrderDetail,
-    BookResponse,
-    PriceResponse,
+    OrderBookResponse,
 )
 
 router = APIRouter()
 
 
+def _build_order_book_response(ob: OrderBook) -> OrderBookResponse:
+    outstanding = float(ob.book.total_price) - float(ob.deposit_amount)
+    return OrderBookResponse(
+        id=ob.id,
+        book_id=ob.book_id,
+        title=ob.book.title,
+        publisher_name=ob.book.publisher.name,
+        ps_charge=ob.book.ps_charge,
+        total_price=ob.book.total_price,
+        status=ob.status,
+        deposit_amount=ob.deposit_amount,
+        outstanding_amount=outstanding,
+        created_at=ob.created_at,
+        updated_at=ob.updated_at,
+    )
+
+
 def _build_order_detail(order: Order) -> OrderDetail:
-    books = [
-        BookResponse(
-            id=ob.book.id,
-            title=ob.book.title,
-            author=ob.book.author,
-            status=ob.book.status,
-            created_at=ob.book.created_at,
-            updated_at=ob.book.updated_at,
-            price=PriceResponse(
-                total_price=ob.book.price.total_price,
-                deposit_amount=ob.book.price.deposit_amount,
-                outstanding_amount=ob.book.price.outstanding_amount,
-            )
-            if ob.book.price
-            else None,
-        )
-        for ob in order.order_books
-    ]
-    total_outstanding = sum(
-        b.price.outstanding_amount for b in books if b.price
-    )
-    postage_charge = (
-        POSTAGE_RATES.get(order.postage_type) if order.postage_type else None
-    )
+    ob_responses = [_build_order_book_response(ob) for ob in order.order_books]
+    total_outstanding = sum(r.outstanding_amount for r in ob_responses)
     return OrderDetail(
         id=order.id,
         user_id=order.user_id,
         status=order.status,
         postage_type=order.postage_type,
+        postage_amount=order.postage_amount,
         address=order.address,
         note=order.note,
         created_at=order.created_at,
         updated_at=order.updated_at,
-        books=books,
-        postage_charge=postage_charge,
+        order_books=ob_responses,
         total_outstanding=total_outstanding,
+        customer_name=order.user.name if order.user else "",
+        customer_phone=order.user.phone_number if order.user else "",
     )
 
 
@@ -98,13 +94,15 @@ async def get_customer(
             selectinload(User.orders)
             .selectinload(Order.order_books)
             .selectinload(OrderBook.book)
-            .selectinload(Book.price)
+            .selectinload(Book.publisher)
         )
         .where(User.id == customer_id)
     )
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="Customer not found")
+    for o in user.orders:
+        o.user = user
     return CustomerDetail(
         id=user.id,
         name=user.name,
