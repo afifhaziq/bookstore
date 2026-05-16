@@ -23,15 +23,25 @@ class OrderStatus(str, enum.Enum):
 
 
 class PostageType(str, enum.Enum):
+    semenanjung = "semenanjung"
+    sabah_sarawak = "sabah_sarawak"
+
+
+class PsChargeType(str, enum.Enum):
     premium = "premium"
     hard_cover = "hard_cover"
     soft_cover = "soft_cover"
 
 
-POSTAGE_RATES: dict[PostageType, float] = {
-    PostageType.premium: 10.00,
-    PostageType.hard_cover: 8.00,
-    PostageType.soft_cover: 5.00,
+POSTAGE_DEFAULTS: dict[PostageType, float] = {
+    PostageType.semenanjung: 8.00,
+    PostageType.sabah_sarawak: 16.00,
+}
+
+PS_CHARGE_RATES: dict[PsChargeType, float] = {
+    PsChargeType.premium: 10.00,
+    PsChargeType.hard_cover: 8.00,
+    PsChargeType.soft_cover: 5.00,
 }
 
 
@@ -42,6 +52,31 @@ class User(Base):
     phone_number = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     orders = relationship("Order", back_populates="user")
+
+
+class Publisher(Base):
+    __tablename__ = "publishers"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    books = relationship("Book", back_populates="publisher")
+
+
+class Book(Base):
+    __tablename__ = "books"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, nullable=False)
+    publisher_id = Column(Integer, ForeignKey("publishers.id"), nullable=False)
+    ps_charge = Column(
+        Enum(PsChargeType, name="ps_charge_type", native_enum=False),
+        nullable=False,
+    )
+    total_price = Column(Numeric(10, 2), nullable=False)
+    deposit_amount = Column(Numeric(10, 2), nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    publisher = relationship("Publisher", back_populates="books")
+    order_books = relationship("OrderBook", back_populates="book")
 
 
 class Order(Base):
@@ -56,6 +91,7 @@ class Order(Base):
     postage_type = Column(
         Enum(PostageType, name="postage_type", native_enum=False), nullable=True
     )
+    postage_amount = Column(Numeric(10, 2), nullable=True)
     address = Column(String, nullable=False)
     note = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -66,40 +102,18 @@ class Order(Base):
     )
 
 
-class Book(Base):
-    __tablename__ = "books"
+class OrderBook(Base):
+    __tablename__ = "order_books"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(String, nullable=False)
-    author = Column(String, nullable=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     status = Column(
         Enum(BookStatus, name="book_status", native_enum=False),
         nullable=False,
         default=BookStatus.deposit,
     )
+    deposit_amount = Column(Numeric(10, 2), nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    price = relationship(
-        "Price", back_populates="book", uselist=False, cascade="all, delete-orphan"
-    )
-    order_books = relationship("OrderBook", back_populates="book")
-
-
-class Price(Base):
-    __tablename__ = "prices"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    book_id = Column(Integer, ForeignKey("books.id"), nullable=False, unique=True)
-    total_price = Column(Numeric(10, 2), nullable=False)
-    deposit_amount = Column(Numeric(10, 2), nullable=False, default=0)
-    book = relationship("Book", back_populates="price")
-
-    @property
-    def outstanding_amount(self) -> float:
-        return float(self.total_price) - float(self.deposit_amount)
-
-
-class OrderBook(Base):
-    __tablename__ = "order_books"
-    order_id = Column(Integer, ForeignKey("orders.id"), primary_key=True)
-    book_id = Column(Integer, ForeignKey("books.id"), primary_key=True)
     order = relationship("Order", back_populates="order_books")
     book = relationship("Book", back_populates="order_books")
