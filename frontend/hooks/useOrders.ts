@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, PostageType, BookStatus } from "@/lib/api";
+import { api, PostageType, BookStatus, NewBookSpec } from "@/lib/api";
 
 export function useOrders() {
   return useQuery({
@@ -35,6 +35,20 @@ export function useUpdateOrder(id: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orders", id] });
       qc.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}
+
+export function useAddBooksToOrder(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { book_ids?: number[]; new_books?: NewBookSpec[] }) =>
+      api.orders.addBooks(orderId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["orders", orderId] });
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["books"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }

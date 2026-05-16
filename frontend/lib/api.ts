@@ -64,6 +64,8 @@ export interface Order {
   books: Book[];
   postage_charge: number | null;
   total_outstanding: number;
+  customer_name: string;
+  customer_phone: string;
 }
 
 export interface Customer {
@@ -86,6 +88,14 @@ export interface Dashboard {
   book_status_counts: BookStatusCount[];
   total_outstanding: number;
   books_with_outstanding: Book[];
+}
+
+export interface NewBookSpec {
+  title: string;
+  author?: string;
+  total_price: string;
+  deposit_amount?: string;
+  quantity?: number;
 }
 
 // ---- API functions ----
@@ -116,12 +126,7 @@ export const api = {
       address: string;
       note?: string;
       postage_type?: PostageType;
-      books: {
-        title: string;
-        author?: string;
-        status: BookStatus;
-        price: { total_price: string; deposit_amount: string };
-      }[];
+      book_ids: number[];
     }) =>
       request<Order>("/orders/", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: { address?: string; note?: string; postage_type?: PostageType }) =>
@@ -129,18 +134,31 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    addBooks: (id: number, payload: { book_ids?: number[]; new_books?: NewBookSpec[] }) =>
+      request<Order>(`/orders/${id}/books`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
     cancel: (id: number) =>
       request<Order>(`/orders/${id}/cancel`, { method: "PATCH" }),
   },
 
   books: {
-    list: (params?: { status?: BookStatus; outstanding_only?: boolean }) => {
+    list: (params?: { status?: BookStatus; outstanding_only?: boolean; unlinked?: boolean }) => {
       const qs = new URLSearchParams();
       if (params?.status) qs.set("status", params.status);
       if (params?.outstanding_only) qs.set("outstanding_only", "true");
+      if (params?.unlinked) qs.set("unlinked", "true");
       const q = qs.toString();
       return request<Book[]>(`/books/${q ? `?${q}` : ""}`);
     },
+    create: (data: {
+      title: string;
+      author?: string;
+      status?: BookStatus;
+      price: { total_price: string; deposit_amount: string };
+    }) =>
+      request<Book>("/books/", { method: "POST", body: JSON.stringify(data) }),
     update: (
       id: number,
       data: {
