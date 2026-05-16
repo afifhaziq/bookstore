@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useOrders } from "@/hooks/useOrders";
 import { PageShell } from "@/components/PageShell";
-import { StatusBadge } from "@/components/StatusBadge";
 import { PostageBadge } from "@/components/PostageBadge";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -14,6 +13,59 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Order, BookStatus } from "@/lib/api";
+import { ArrowRight, Plus } from "lucide-react";
+
+const DOT_COLOR: Record<BookStatus, string> = {
+  deposit:        "bg-yellow-400",
+  paid:           "bg-blue-400",
+  bought:         "bg-violet-400",
+  under_delivery: "bg-orange-400",
+  delivered:      "bg-emerald-500",
+  cancelled:      "bg-gray-300",
+};
+
+const STATUS_LABEL: Record<BookStatus, string> = {
+  deposit:        "Deposit",
+  paid:           "Paid",
+  bought:         "Bought",
+  under_delivery: "Under delivery",
+  delivered:      "Delivered",
+  cancelled:      "Cancelled",
+};
+
+function BookDots({ books }: { books: Order["order_books"] }) {
+  if (books.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
+
+  const counts = books.reduce<Partial<Record<BookStatus, number>>>((acc, b) => {
+    acc[b.status] = (acc[b.status] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const tooltip = (Object.entries(counts) as [BookStatus, number][])
+    .map(([s, n]) => `${n} ${STATUS_LABEL[s]}`)
+    .join(", ");
+
+  return (
+    <div className="flex items-center gap-1" title={tooltip}>
+      {books.map((book) => (
+        <span
+          key={book.id}
+          className={`inline-block h-2 w-2 rounded-full ${DOT_COLOR[book.status]} ring-1 ring-white`}
+        />
+      ))}
+    </div>
+  );
+}
+
+const LEGEND: { status: BookStatus; label: string }[] = [
+  { status: "deposit",        label: "Deposit" },
+  { status: "paid",           label: "Paid" },
+  { status: "bought",         label: "Bought" },
+  { status: "under_delivery", label: "In transit" },
+  { status: "delivered",      label: "Delivered" },
+  { status: "cancelled",      label: "Cancelled" },
+];
 
 export default function OrdersPage() {
   const { data: orders, isLoading } = useOrders();
@@ -23,62 +75,79 @@ export default function OrdersPage() {
       title="Orders"
       action={
         <Link href="/orders/new" className={buttonVariants({ size: "sm" })}>
+          <Plus size={14} className="mr-1" />
           New order
         </Link>
       }
     >
+      {/* Legend */}
+      <div className="flex items-center gap-4 flex-wrap">
+        {LEGEND.map(({ status, label }) => (
+          <span key={status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${DOT_COLOR[status]}`} />
+            {label}
+          </span>
+        ))}
+      </div>
+
       {isLoading ? (
         <p className="text-muted-foreground text-sm">Loading…</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Order</TableHead>
-              <TableHead>Address</TableHead>
+              <TableHead className="w-16">Order</TableHead>
+              <TableHead>Customer</TableHead>
               <TableHead>Books</TableHead>
               <TableHead>Postage</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead className="text-right">Outstanding</TableHead>
+              <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(orders ?? []).map((order) => (
-              <TableRow key={order.id}>
-                <TableCell>
-                  <Link
-                    href={`/orders/${order.id}`}
-                    className="font-medium hover:underline"
-                  >
+            {(orders ?? []).map((order) => {
+              const cancelled = order.status === "cancelled";
+              return (
+                <TableRow
+                  key={order.id}
+                  className={cancelled ? "opacity-50" : undefined}
+                >
+                  <TableCell className="font-medium tabular-nums text-muted-foreground">
                     #{order.id}
-                  </Link>
-                </TableCell>
-                <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                  {order.address}
-                </TableCell>
-                <TableCell>{order.books.length}</TableCell>
-                <TableCell>
-                  <PostageBadge type={order.postage_type} />
-                </TableCell>
-                <TableCell>
-                  <StatusBadge status={order.status} />
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {order.total_outstanding > 0 ? (
-                    <span className="text-destructive">
-                      RM {Number(order.total_outstanding).toFixed(2)}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                  <TableCell>
+                    <p className="text-sm font-medium">{order.customer_name}</p>
+                    <p className="text-xs text-muted-foreground">{order.customer_phone}</p>
+                  </TableCell>
+                  <TableCell>
+                    <BookDots books={order.order_books} />
+                  </TableCell>
+                  <TableCell>
+                    <PostageBadge type={order.postage_type} />
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-sm">
+                    {Number(order.total_outstanding) > 0 ? (
+                      <span className="text-destructive font-medium">
+                        RM {Number(order.total_outstanding).toFixed(2)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Link
+                      href={`/orders/${order.id}`}
+                      className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    >
+                      <ArrowRight size={14} />
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {orders?.length === 0 && (
               <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="text-center text-muted-foreground"
-                >
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
                   No orders yet.
                 </TableCell>
               </TableRow>

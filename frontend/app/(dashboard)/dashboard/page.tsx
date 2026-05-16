@@ -84,32 +84,32 @@ export default function DashboardPage() {
 
       <div>
         <h2 className="font-sans text-lg font-semibold mb-3">
-          Books with Outstanding Balance
+          Copies with Outstanding Balance
         </h2>
-        {data.books_with_outstanding.length === 0 ? (
+        {data.copies_with_outstanding.length === 0 ? (
           <p className="text-muted-foreground text-sm">All balances settled.</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
-                <TableHead>Author</TableHead>
+                <TableHead>Publisher</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Outstanding</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.books_with_outstanding.map((book) => (
-                <TableRow key={book.id}>
-                  <TableCell className="font-medium">{book.title}</TableCell>
+              {data.copies_with_outstanding.map((ob) => (
+                <TableRow key={ob.id}>
+                  <TableCell className="font-medium">{ob.title}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {book.author ?? "—"}
+                    {ob.publisher_name}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={book.status} />
+                    <StatusBadge status={ob.status} />
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-destructive">
-                    RM {book.price ? Number(book.price.outstanding_amount).toFixed(2) : "0.00"}
+                    RM {Number(ob.outstanding_amount).toFixed(2)}
                   </TableCell>
                 </TableRow>
               ))}
