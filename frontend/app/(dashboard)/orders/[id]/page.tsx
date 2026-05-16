@@ -2,8 +2,8 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { useOrder, useCancelOrder, useUpdateOrder } from "@/hooks/useOrders";
-import { useUpdateBook } from "@/hooks/useBooks";
+import { useOrder, useCancelOrder, useUpdateOrder, useAddBooksToOrder } from "@/hooks/useOrders";
+import { useUpdateBook, useBooks } from "@/hooks/useBooks";
 import { PageShell } from "@/components/PageShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PostageBadge } from "@/components/PostageBadge";
@@ -28,7 +28,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChevronLeft } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { ChevronLeft, Plus } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { BookStatus } from "@/lib/api";
 
 const BOOK_STATUSES: BookStatus[] = [
@@ -40,6 +48,240 @@ const BOOK_STATUSES: BookStatus[] = [
   "cancelled",
 ];
 
+function AddBooksDialog({
+  orderId,
+  existingBookIds,
+  open,
+  onClose,
+}: {
+  orderId: number;
+  existingBookIds: number[];
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { data: allBooks } = useBooks();
+  const addBooks = useAddBooksToOrder(orderId);
+
+  const [tab, setTab] = useState<"existing" | "new">("existing");
+
+  // existing-tab state
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  // new-tab state
+  const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  const [totalPrice, setTotalPrice] = useState("");
+  const [deposit, setDeposit] = useState("0");
+  const [quantity, setQuantity] = useState(1);
+
+  const available = (allBooks ?? []).filter((b) => !existingBookIds.includes(b.id));
+
+  function toggle(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function resetForm() {
+    setSelected(new Set());
+    setTitle("");
+    setAuthor("");
+    setTotalPrice("");
+    setDeposit("0");
+    setQuantity(1);
+    setTab("existing");
+  }
+
+  function handleClose() {
+    resetForm();
+    onClose();
+  }
+
+  async function handleAddExisting() {
+    if (selected.size === 0) return;
+    await addBooks.mutateAsync({ book_ids: Array.from(selected) });
+    resetForm();
+    onClose();
+  }
+
+  async function handleAddNew() {
+    if (!title.trim() || !totalPrice.trim()) return;
+    await addBooks.mutateAsync({
+      new_books: [
+        {
+          title: title.trim(),
+          author: author.trim() || undefined,
+          total_price: totalPrice,
+          deposit_amount: deposit,
+          quantity,
+        },
+      ],
+    });
+    resetForm();
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Books to Order</DialogTitle>
+        </DialogHeader>
+
+        {/* Tab bar */}
+        <div className="flex border-b">
+          <button
+            type="button"
+            onClick={() => setTab("existing")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === "existing"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Select existing
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("new")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === "new"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Add new
+          </button>
+        </div>
+
+        {tab === "existing" ? (
+          available.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              No available books. Add books from the Books page first.
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {available.map((book) => {
+                const sel = selected.has(book.id);
+                return (
+                  <button
+                    key={book.id}
+                    type="button"
+                    onClick={() => toggle(book.id)}
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                      sel ? "border-primary bg-primary/5" : "hover:bg-accent"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-sm">{book.title}</p>
+                        {book.author && (
+                          <p className="text-xs text-muted-foreground">{book.author}</p>
+                        )}
+                      </div>
+                      {book.price && (
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          RM {Number(book.price.total_price).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="new-title">Title *</Label>
+              <Input
+                id="new-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Book title"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="new-author">Author</Label>
+              <Input
+                id="new-author"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="new-price">Total price (RM) *</Label>
+                <Input
+                  id="new-price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={totalPrice}
+                  onChange={(e) => setTotalPrice(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="new-deposit">Deposit (RM)</Label>
+                <Input
+                  id="new-deposit"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={deposit}
+                  onChange={(e) => setDeposit(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="new-qty">Quantity</Label>
+              <Input
+                id="new-qty"
+                type="number"
+                min="1"
+                max="50"
+                value={quantity}
+                onChange={(e) =>
+                  setQuantity(Math.min(50, Math.max(1, Number(e.target.value))))
+                }
+              />
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+          {tab === "existing" ? (
+            <Button
+              onClick={handleAddExisting}
+              disabled={selected.size === 0 || addBooks.isPending}
+            >
+              {addBooks.isPending
+                ? "Adding…"
+                : `Add ${selected.size > 0 ? selected.size : ""} Book${selected.size !== 1 ? "s" : ""}`}
+            </Button>
+          ) : (
+            <Button
+              onClick={handleAddNew}
+              disabled={!title.trim() || !totalPrice.trim() || addBooks.isPending}
+            >
+              {addBooks.isPending
+                ? "Adding…"
+                : `Add ${quantity > 1 ? `${quantity} ` : ""}Book${quantity !== 1 ? "s" : ""}`}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function BookRow({ book }: { book: { id: number; title: string; author: string | null; status: BookStatus; price: { total_price: number; deposit_amount: number; outstanding_amount: number } | null } }) {
   const updateBook = useUpdateBook(book.id);
   const [editing, setEditing] = useState(false);
@@ -47,7 +289,10 @@ function BookRow({ book }: { book: { id: number; title: string; author: string |
     book.price?.deposit_amount.toString() ?? "0"
   );
 
+  const outstanding = Number(book.price?.outstanding_amount ?? 0);
+
   async function handleStatusChange(status: BookStatus) {
+    if (status === "paid" && outstanding > 0) return;
     await updateBook.mutateAsync({ status });
   }
 
@@ -70,11 +315,19 @@ function BookRow({ book }: { book: { id: number; title: string; author: string |
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {BOOK_STATUSES.map((s) => (
-              <SelectItem key={s} value={s} className="text-xs">
-                <StatusBadge status={s} />
-              </SelectItem>
-            ))}
+            {BOOK_STATUSES.map((s) => {
+              const disabled = s === "paid" && outstanding > 0;
+              return (
+                <SelectItem key={s} value={s} className="text-xs" disabled={disabled}>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={s} />
+                    {disabled && (
+                      <span className="text-muted-foreground text-xs">(clear balance first)</span>
+                    )}
+                  </div>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>
@@ -131,6 +384,7 @@ export default function OrderDetailPage({
   const cancelOrder = useCancelOrder();
   const updateOrder = useUpdateOrder(Number(id));
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [addBooksOpen, setAddBooksOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState(false);
   const [address, setAddress] = useState("");
 
@@ -273,9 +527,17 @@ export default function OrderDetailPage({
       </div>
 
       <div>
-        <h2 className="font-sans text-lg font-semibold mb-3">
-          Books ({order.books.length})
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-sans text-lg font-semibold">
+            Books ({order.books.length})
+          </h2>
+          {order.status === "active" && (
+            <Button size="sm" variant="outline" onClick={() => setAddBooksOpen(true)}>
+              <Plus size={14} className="mr-1" />
+              Add Books
+            </Button>
+          )}
+        </div>
         <Card>
           <CardContent className="pt-4">
             {order.books.map((book) => (
@@ -284,6 +546,13 @@ export default function OrderDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <AddBooksDialog
+        orderId={Number(id)}
+        existingBookIds={order.books.map((b) => b.id)}
+        open={addBooksOpen}
+        onClose={() => setAddBooksOpen(false)}
+      />
 
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <AlertDialogContent>
