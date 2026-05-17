@@ -6,6 +6,8 @@ import { useCustomers, useCreateCustomer } from "@/hooks/useCustomers";
 import { PageShell } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -55,7 +57,11 @@ export default function CustomersPage() {
       />
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Loading…</p>
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
       ) : (
         <Table>
           <TableHeader>
@@ -86,7 +92,7 @@ export default function CustomersPage() {
             ))}
             {customers?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground">
+                <TableCell colSpan={3} className="text-center text-muted-foreground py-10">
                   No customers found.
                 </TableCell>
               </TableRow>
@@ -102,7 +108,7 @@ export default function CustomersPage() {
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4 pt-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium">Name</label>
+              <Label>Name</Label>
               <Input
                 required
                 value={name}
@@ -111,7 +117,7 @@ export default function CustomersPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium">Phone</label>
+              <Label>Phone</Label>
               <Input
                 required
                 value={phone}

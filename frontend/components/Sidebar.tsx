@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   BookOpen,
   LayoutDashboard,
@@ -36,11 +36,9 @@ const NAV = [
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+  const [dark, setDark] = useState(
+    () => typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+  );
 
   function toggleTheme() {
     const next = !dark;
@@ -63,7 +61,7 @@ export function AppSidebar() {
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
                 <BookOpen className="size-4" />
               </div>
-              <span className="font-semibold text-sm">Jaslin's Pages</span>
+              <span className="font-semibold text-sm">{"Jaslin's Pages"}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

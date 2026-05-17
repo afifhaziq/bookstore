@@ -8,6 +8,7 @@ import { useBooks } from "@/hooks/useBooks";
 import { PageShell } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -16,13 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PostageType, PsChargeType } from "@/lib/api";
-
-const PS_CHARGE_RATES: Record<PsChargeType, number> = {
-  premium: 10,
-  hard_cover: 8,
-  soft_cover: 5,
-};
+import { PostageType, PS_CHARGE_RATES } from "@/lib/api";
 
 const POSTAGE_OPTIONS: { value: PostageType; label: string }[] = [
   { value: "semenanjung", label: "Semenanjung (RM 8)" },
@@ -160,22 +155,24 @@ export default function NewOrderPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="icon-sm"
                         onClick={() => decrement(book.id)}
                         disabled={count === 0}
-                        className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium disabled:opacity-30 hover:bg-accent transition-colors"
                       >
                         −
-                      </button>
+                      </Button>
                       <span className="w-6 text-center text-sm tabular-nums">{count}</span>
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="icon-sm"
                         onClick={() => increment(book.id)}
-                        className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium hover:bg-accent transition-colors"
                       >
                         +
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 );
@@ -201,7 +198,7 @@ export default function NewOrderPage() {
           <h2 className="font-medium">Delivery details</h2>
           <div className="space-y-3 max-w-md">
             <div className="space-y-1">
-              <label className="text-sm font-medium">Address *</label>
+              <Label>Address *</Label>
               <Textarea
                 required
                 value={address}
@@ -211,7 +208,7 @@ export default function NewOrderPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium">Note</label>
+              <Label>Note</Label>
               <Textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -220,7 +217,7 @@ export default function NewOrderPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium">Postage type</label>
+              <Label>Postage type</Label>
               <Select
                 value={postageType}
                 onValueChange={(v) => v && setPostageType(v as PostageType)}

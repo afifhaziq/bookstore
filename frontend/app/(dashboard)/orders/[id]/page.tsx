@@ -36,13 +36,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ChevronLeft, Plus } from "lucide-react";
-import { BookStatus, OrderBook, CopySpec, PsChargeType } from "@/lib/api";
-
-const PS_CHARGE_RATES: Record<PsChargeType, number> = {
-  premium: 10,
-  hard_cover: 8,
-  soft_cover: 5,
-};
+import { BookStatus, OrderBook, CopySpec, PS_CHARGE_RATES } from "@/lib/api";
 
 const BOOK_STATUSES: BookStatus[] = [
   "deposit",
@@ -120,22 +114,24 @@ function AddBooksDialog({
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="icon-sm"
                       onClick={() => decrement(book.id)}
                       disabled={count === 0}
-                      className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium disabled:opacity-30 hover:bg-accent transition-colors"
                     >
                       −
-                    </button>
+                    </Button>
                     <span className="w-6 text-center text-sm tabular-nums">{count}</span>
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="icon-sm"
                       onClick={() => increment(book.id)}
-                      className="w-7 h-7 rounded border flex items-center justify-center text-sm font-medium hover:bg-accent transition-colors"
                     >
                       +
-                    </button>
+                    </Button>
                   </div>
                 </div>
               );
@@ -179,7 +175,7 @@ function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
           <p className="text-xs text-muted-foreground">{ob.publisher_name}</p>
         </div>
         <Select value={ob.status} onValueChange={(v) => v && handleStatusChange(v as BookStatus)}>
-          <SelectTrigger className="w-40 h-8 text-xs bg-[#789480] text-white border-none dark:bg-[#789480] dark:text-white dark:hover:bg-[#789480]/90">
+          <SelectTrigger className="w-40 h-8 text-xs bg-primary text-white border-none hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -200,7 +196,7 @@ function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
         </Select>
       </div>
 
-      <div className="flex items-end gap-3 text-xs">
+      <div className="flex items-end gap-3">
         <PriceSummary
           totalPrice={ob.total_price}
           depositAmount={ob.deposit_amount}
@@ -228,7 +224,7 @@ function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
         ) : (
           <Button
             size="sm"
-            className="h-7 text-xs px-2 bg-[#789480] text-white hover:bg-[#789480]/90"
+            className="h-7 text-xs px-2"
             onClick={() => {
               setDeposit(ob.deposit_amount.toString());
               setEditing(true);
@@ -406,7 +402,7 @@ export default function OrderDetailPage({
             )}
             <div className="flex justify-between font-medium">
               <span>Total outstanding</span>
-              <span className={order.total_outstanding > 0 ? "text-destructive" : "text-green-700"}>
+              <span className={order.total_outstanding > 0 ? "text-destructive" : "text-primary"}>
                 RM {Number(order.total_outstanding).toFixed(2)}
               </span>
             </div>
@@ -416,7 +412,7 @@ export default function OrderDetailPage({
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-sans text-lg font-semibold">
+          <h2 className="text-lg font-semibold">
             Books ({order.order_books.length})
           </h2>
           {order.status === "active" && (

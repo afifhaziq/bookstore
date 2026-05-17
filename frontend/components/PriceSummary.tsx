@@ -20,7 +20,7 @@ export function PriceSummary({
       <div>
         <dt className="text-muted-foreground">Outstanding</dt>
         <dd
-          className={`font-medium ${Number(outstandingAmount) > 0 ? "text-destructive" : "text-green-700"}`}
+          className={`font-medium ${Number(outstandingAmount) > 0 ? "text-destructive" : "text-primary"}`}
         >
           RM {Number(outstandingAmount).toFixed(2)}
         </dd>

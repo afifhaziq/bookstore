@@ -3,11 +3,11 @@
 import { useDashboard } from "@/hooks/useDashboard";
 import { PageShell } from "@/components/PageShell";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   Table,
@@ -24,7 +24,16 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <PageShell title="Dashboard">
-        <p className="text-muted-foreground text-sm">Loading…</p>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <Skeleton key={i} className="h-20" />
+          ))}
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
       </PageShell>
     );
   }
@@ -56,9 +65,7 @@ export default function DashboardPage() {
         ).map((status) => (
           <Card key={status}>
             <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <StatusBadge status={status} />
-              </CardTitle>
+              <StatusBadge status={status} />
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-semibold tabular-nums">
@@ -70,9 +77,9 @@ export default function DashboardPage() {
 
         <Card className="sm:col-span-4 md:col-span-2">
           <CardHeader className="pb-1">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Total Outstanding
-            </CardTitle>
+            </p>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold tabular-nums text-destructive">
@@ -83,7 +90,7 @@ export default function DashboardPage() {
       </div>
 
       <div>
-        <h2 className="font-sans text-lg font-semibold mb-3">
+        <h2 className="text-lg font-semibold mb-3">
           Copies with Outstanding Balance
         </h2>
         {data.copies_with_outstanding.length === 0 ? (

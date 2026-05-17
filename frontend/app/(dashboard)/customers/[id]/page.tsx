@@ -59,7 +59,7 @@ export default function CustomerDetailPage({
       </div>
 
       <div className="space-y-4">
-        <h2 className="font-sans text-lg font-semibold">
+        <h2 className="text-lg font-semibold">
           Orders ({customer.orders.length})
         </h2>
 
@@ -88,7 +88,7 @@ export default function CustomerDetailPage({
             <CardContent className="space-y-2">
               <p className="text-sm text-muted-foreground">{order.address}</p>
               <div className="text-sm space-y-1">
-                {order.books.map((book) => (
+                {order.order_books.map((book) => (
                   <div key={book.id} className="flex items-center justify-between">
                     <span>{book.title}</span>
                     <StatusBadge status={book.status} />

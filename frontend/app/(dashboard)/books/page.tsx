@@ -39,7 +39,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Book, PsChargeType } from "@/lib/api";
+import { Book, PsChargeType, PS_CHARGE_RATES } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Trash2 } from "lucide-react";
 
 const PS_CHARGE_OPTIONS: { value: PsChargeType; label: string }[] = [
@@ -47,12 +48,6 @@ const PS_CHARGE_OPTIONS: { value: PsChargeType; label: string }[] = [
   { value: "hard_cover", label: "Hard Cover (RM 8)" },
   { value: "soft_cover", label: "Soft Cover (RM 5)" },
 ];
-
-const PS_CHARGE_RATES: Record<PsChargeType, number> = {
-  premium: 10,
-  hard_cover: 8,
-  soft_cover: 5,
-};
 
 function BookRow({ book, onDelete }: { book: Book; onDelete: () => void }) {
   return (
@@ -270,7 +265,11 @@ export default function BooksPage() {
       }
     >
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Loading…</p>
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
       ) : (
         <Table>
           <TableHeader>
@@ -293,7 +292,7 @@ export default function BooksPage() {
             ))}
             {books?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
                   No books found. Add one to get started.
                 </TableCell>
               </TableRow>

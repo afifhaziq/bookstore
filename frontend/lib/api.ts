@@ -37,6 +37,12 @@ export type OrderStatus = "active" | "cancelled";
 export type PostageType = "semenanjung" | "sabah_sarawak";
 export type PsChargeType = "premium" | "hard_cover" | "soft_cover";
 
+export const PS_CHARGE_RATES: Record<PsChargeType, number> = {
+  premium: 10,
+  hard_cover: 8,
+  soft_cover: 5,
+};
+
 export interface Publisher {
   id: number;
   name: string;

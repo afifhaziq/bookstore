@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Order, BookStatus } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight, Plus } from "lucide-react";
 
 const DOT_COLOR: Record<BookStatus, string> = {
@@ -91,7 +92,11 @@ export default function OrdersPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Loading…</p>
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
       ) : (
         <Table>
           <TableHeader>
