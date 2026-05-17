@@ -16,7 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PostageType } from "@/lib/api";
+import { PostageType, PsChargeType } from "@/lib/api";
+
+const PS_CHARGE_RATES: Record<PsChargeType, number> = {
+  premium: 10,
+  hard_cover: 8,
+  soft_cover: 5,
+};
 
 const POSTAGE_OPTIONS: { value: PostageType; label: string }[] = [
   { value: "semenanjung", label: "Semenanjung (RM 8)" },
@@ -150,7 +156,7 @@ export default function NewOrderPage() {
                       <p className="font-medium text-sm">{book.title}</p>
                       <p className="text-xs text-muted-foreground">{book.publisher_name}</p>
                       <p className="text-xs text-muted-foreground tabular-nums">
-                        RM {Number(book.total_price).toFixed(2)}
+                        RM {(Number(book.total_price) + PS_CHARGE_RATES[book.ps_charge]).toFixed(2)}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -219,7 +225,7 @@ export default function NewOrderPage() {
                 value={postageType}
                 onValueChange={(v) => v && setPostageType(v as PostageType)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select postage…" />
                 </SelectTrigger>
                 <SelectContent>

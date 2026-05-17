@@ -17,12 +17,12 @@ import { Order, BookStatus } from "@/lib/api";
 import { ArrowRight, Plus } from "lucide-react";
 
 const DOT_COLOR: Record<BookStatus, string> = {
-  deposit:        "bg-yellow-400",
-  paid:           "bg-blue-400",
-  bought:         "bg-violet-400",
-  under_delivery: "bg-orange-400",
-  delivered:      "bg-emerald-500",
-  cancelled:      "bg-gray-300",
+  deposit:        "bg-yellow-300",
+  paid:           "bg-blue-300",
+  bought:         "bg-violet-300",
+  under_delivery: "bg-orange-300",
+  delivered:      "bg-emerald-400",
+  cancelled:      "bg-gray-300 opacity-40",
 };
 
 const STATUS_LABEL: Record<BookStatus, string> = {
@@ -51,7 +51,7 @@ function BookDots({ books }: { books: Order["order_books"] }) {
       {books.map((book) => (
         <span
           key={book.id}
-          className={`inline-block h-2 w-2 rounded-full ${DOT_COLOR[book.status]} ring-1 ring-white`}
+          className={`inline-block h-2.5 w-2.5 rounded-full ${DOT_COLOR[book.status]}`}
         />
       ))}
     </div>

@@ -36,7 +36,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ChevronLeft, Plus } from "lucide-react";
-import { BookStatus, OrderBook, CopySpec } from "@/lib/api";
+import { BookStatus, OrderBook, CopySpec, PsChargeType } from "@/lib/api";
+
+const PS_CHARGE_RATES: Record<PsChargeType, number> = {
+  premium: 10,
+  hard_cover: 8,
+  soft_cover: 5,
+};
 
 const BOOK_STATUSES: BookStatus[] = [
   "deposit",
@@ -110,7 +116,7 @@ function AddBooksDialog({
                     <p className="font-medium text-sm">{book.title}</p>
                     <p className="text-xs text-muted-foreground">{book.publisher_name}</p>
                     <p className="text-xs text-muted-foreground tabular-nums">
-                      RM {Number(book.total_price).toFixed(2)}
+                      RM {(Number(book.total_price) + PS_CHARGE_RATES[book.ps_charge]).toFixed(2)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -173,7 +179,7 @@ function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
           <p className="text-xs text-muted-foreground">{ob.publisher_name}</p>
         </div>
         <Select value={ob.status} onValueChange={(v) => v && handleStatusChange(v as BookStatus)}>
-          <SelectTrigger className="w-40 h-8 text-xs">
+          <SelectTrigger className="w-40 h-8 text-xs bg-[#789480] text-white border-none dark:bg-[#789480] dark:text-white dark:hover:bg-[#789480]/90">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -222,8 +228,7 @@ function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
         ) : (
           <Button
             size="sm"
-            variant="outline"
-            className="h-7 text-xs px-2"
+            className="h-7 text-xs px-2 bg-[#789480] text-white hover:bg-[#789480]/90"
             onClick={() => {
               setDeposit(ob.deposit_amount.toString());
               setEditing(true);
@@ -330,7 +335,7 @@ export default function OrderDetailPage({
                   {order.status === "active" && (
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="secondary"
                       className="h-6 px-2 text-xs"
                       onClick={() => { setAddress(order.address); setEditingAddress(true); }}
                     >
@@ -385,7 +390,7 @@ export default function OrderDetailPage({
                     {order.status === "active" && (
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="secondary"
                         className="h-6 px-2 text-xs"
                         onClick={() => {
                           setPostageAmount(order.postage_amount?.toString() ?? "");

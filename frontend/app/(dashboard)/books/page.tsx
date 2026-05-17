@@ -48,6 +48,12 @@ const PS_CHARGE_OPTIONS: { value: PsChargeType; label: string }[] = [
   { value: "soft_cover", label: "Soft Cover (RM 5)" },
 ];
 
+const PS_CHARGE_RATES: Record<PsChargeType, number> = {
+  premium: 10,
+  hard_cover: 8,
+  soft_cover: 5,
+};
+
 function BookRow({ book, onDelete }: { book: Book; onDelete: () => void }) {
   return (
     <TableRow>
@@ -57,7 +63,7 @@ function BookRow({ book, onDelete }: { book: Book; onDelete: () => void }) {
         {book.ps_charge.replace("_", " ")}
       </TableCell>
       <TableCell className="text-right tabular-nums">
-        RM {Number(book.total_price).toFixed(2)}
+        RM {(Number(book.total_price) + PS_CHARGE_RATES[book.ps_charge]).toFixed(2)}
       </TableCell>
       <TableCell className="text-right tabular-nums">
         RM {Number(book.deposit_amount).toFixed(2)}

@@ -56,15 +56,15 @@ SUPABASE_URL=https://<project>.supabase.co
 
 **Constants**: `POSTAGE_DEFAULTS = {semenanjung: 8.00, sabah_sarawak: 16.00}`, `PS_CHARGE_RATES = {premium: 10.00, hard_cover: 8.00, soft_cover: 5.00}`.
 
-`Publisher` is a catalog of publishers (id, name unique). `Book` is a catalog entry linked to a publisher (publisher_id FK, ps_charge, total_price, deposit_amount) — no per-book status. `OrderBook` is the per-copy join record with its own auto-increment PK, per-copy `status` (BookStatus) and `deposit_amount`. `Order` has `postage_type` and `postage_amount` (nullable Numeric; auto-filled from POSTAGE_DEFAULTS when type is set without explicit amount).
+`Publisher` is a catalog of publishers (id, name unique). `Book` is a catalog entry linked to a publisher (publisher_id FK, ps_charge, total_price, deposit_amount) — no per-book status. `OrderBook` is the per-copy join record with its own auto-increment PK, per-copy `status` (BookStatus) and `deposit_amount`. `Order` has `postage_type` and `postage_amount` (nullable Numeric; auto-filled from POSTAGE_DEFAULTS when type is set without explicit amount), plus required `address` (String) and optional `note` (Text).
 
-**Outstanding per copy**: `book.total_price - order_book.deposit_amount`. When an `OrderBook` is created, its `deposit_amount` is initialized from `book.deposit_amount`.
+**Outstanding per copy**: `(book.total_price + PS_CHARGE_RATES[book.ps_charge]) - order_book.deposit_amount`. The `OrderBookResponse.total_price` field is this computed sum (book price + ps rate), not the raw `Book.total_price`. When an `OrderBook` is created, its `deposit_amount` is initialized from `book.deposit_amount`.
 
 **Books-first workflow**: Books are catalog entries created first (via `POST /books/` with publisher_id + ps_charge + prices). Orders are created with `copies: list[{book_id, quantity}]` — each spec creates `quantity` separate `OrderBook` rows. Additional copies added via `POST /orders/{id}/books` with `{"copies": [...]}`. Per-copy status/deposit updated via `PATCH /orders/{order_id}/books/{ob_id}`.
 
 `OrderDetail` includes denormalized `customer_name`, `customer_phone` from the related `User`, and `order_books: list[OrderBookResponse]`.
 
-`_build_order_book_response` is defined in `customers.py` and imported by `orders.py` and `dashboard.py`.
+`_build_order_book_response` and `_build_order_detail` are both defined in `customers.py` and imported by `orders.py` and `dashboard.py`.
 
 ## Frontend
 
@@ -82,7 +82,7 @@ npm run lint       # ESLint
 - **`app/layout.tsx`** — Root layout: loads IBM Plex Sans/Serif/Mono fonts, wraps with `QueryProvider`.
 - **`app/page.tsx`** — Redirects `/` → `/dashboard`.
 - **`app/login/page.tsx`** — Email/password login via Supabase Auth.
-- **`app/(dashboard)/layout.tsx`** — Auth guard: checks session on mount, redirects to `/login` if none. Renders `<Sidebar>` + `<main>`.
+- **`app/(dashboard)/layout.tsx`** — Auth guard: checks session on mount, redirects to `/login` if none. Wraps children in `<SidebarProvider>` + `<AppSidebar>` (collapsible icon-mode sidebar) + `<SidebarInset>`.
 - **`app/(dashboard)/dashboard/page.tsx`** — Book status counts + outstanding books table.
 - **`app/(dashboard)/customers/`** — List with search + Add dialog; `[id]` shows customer orders.
 - **`app/(dashboard)/orders/`** — List; `[id]` has inline editing of book status/deposit, cancel, address edit; `new/` is a 3-step stepper (customer → select existing books → delivery details).
@@ -94,7 +94,7 @@ npm run lint       # ESLint
 
 ### Key Constraints
 
-- The shadcn install uses `@base-ui/react/button`, which does **not** support `asChild`. Use `buttonVariants()` as `className` on a plain `<Link>` instead of wrapping `<Link>` in `<Button>`.
+- The shadcn install uses `@base-ui/react/button`, which does **not** support `asChild`. Use `buttonVariants()` as `className` on a plain `<Link>` instead of wrapping `<Link>` in `<Button>`. For shadcn Sidebar's `SidebarMenuButton`, use the `render` prop instead: `render={<Link href={href} />}`.
 - Base UI Select's `onValueChange` passes `value | null` — always null-guard before using the value.
 - Next.js 16 App Router: use `use(params)` to unwrap params in client components (not `params.id` directly). See `frontend/AGENTS.md` for the reminder to read `node_modules/next/dist/docs/` before writing Next.js code.
 - Route groups like `(dashboard)` don't add URL segments. `app/(dashboard)/page.tsx` and `app/page.tsx` would both map to `/` — conflict. Dashboard lives at `app/(dashboard)/dashboard/page.tsx`.

@@ -40,7 +40,7 @@ async def test_create_order(client):
     assert data["address"] == "123 Jalan Test"
     assert len(data["order_books"]) == 1
     assert data["order_books"][0]["status"] == "deposit"
-    assert float(data["order_books"][0]["outstanding_amount"]) == 40.0
+    assert float(data["order_books"][0]["outstanding_amount"]) == 50.0
     assert float(data["postage_amount"]) == 8.0
 
 

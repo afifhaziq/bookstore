@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.auth import get_current_user
-from app.models import User, Order, OrderBook, Book
+from app.models import User, Order, OrderBook, Book, PS_CHARGE_RATES
 from app.schemas import (
     CustomerCreate,
     CustomerResponse,
@@ -17,14 +17,16 @@ router = APIRouter()
 
 
 def _build_order_book_response(ob: OrderBook) -> OrderBookResponse:
-    outstanding = float(ob.book.total_price) - float(ob.deposit_amount)
+    ps_rate = PS_CHARGE_RATES[ob.book.ps_charge]
+    total = float(ob.book.total_price) + ps_rate
+    outstanding = total - float(ob.deposit_amount)
     return OrderBookResponse(
         id=ob.id,
         book_id=ob.book_id,
         title=ob.book.title,
         publisher_name=ob.book.publisher.name,
         ps_charge=ob.book.ps_charge,
-        total_price=ob.book.total_price,
+        total_price=total,
         status=ob.status,
         deposit_amount=ob.deposit_amount,
         outstanding_amount=outstanding,

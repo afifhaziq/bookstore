@@ -2,9 +2,29 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Users, ShoppingBag, BookOpen, LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  BookOpen,
+  LayoutDashboard,
+  LogOut,
+  Moon,
+  ShoppingBag,
+  Sun,
+  Users,
+} from "lucide-react";
 import { signOut } from "@/lib/auth";
-import { ThemeToggle } from "./ThemeToggle";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+} from "@/components/ui/sidebar";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -13,9 +33,21 @@ const NAV = [
   { href: "/books", label: "Books", icon: BookOpen },
 ];
 
-export function Sidebar() {
+export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+  }
 
   async function handleSignOut() {
     await signOut();
@@ -23,41 +55,67 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-56 shrink-0 border-r bg-card flex flex-col">
-      <div className="px-5 py-5 border-b">
-        <span className="font-sans text-lg font-semibold">Bookstore</span>
-      </div>
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" render={<Link href="/dashboard" />}>
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
+                <BookOpen className="size-4" />
+              </div>
+              <span className="font-semibold text-sm">Jaslin's Pages</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              }`}
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {NAV.map(({ href, label, icon: Icon }) => {
+                const active =
+                  pathname === href ||
+                  (href !== "/dashboard" && pathname.startsWith(href));
+                return (
+                  <SidebarMenuItem key={href}>
+                    <SidebarMenuButton
+                      render={<Link href={href} />}
+                      isActive={active}
+                      tooltip={label}
+                    >
+                      <Icon />
+                      <span>{label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={toggleTheme}
+              tooltip={dark ? "Light mode" : "Dark mode"}
             >
-              <Icon size={16} />
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
+              {dark ? <Sun /> : <Moon />}
+              <span>{dark ? "Light mode" : "Dark mode"}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={handleSignOut} tooltip="Sign out">
+              <LogOut />
+              <span>Sign out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
 
-      <div className="px-3 py-4 border-t space-y-1">
-        <ThemeToggle />
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-        >
-          <LogOut size={16} />
-          Sign out
-        </button>
-      </div>
-    </aside>
+      <SidebarRail />
+    </Sidebar>
   );
 }
