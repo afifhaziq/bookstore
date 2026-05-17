@@ -47,6 +47,24 @@ const BOOK_STATUSES: BookStatus[] = [
   "cancelled",
 ];
 
+const BOOK_STATUS_DOT: Record<BookStatus, string> = {
+  deposit:        "bg-yellow-300",
+  paid:           "bg-blue-300",
+  bought:         "bg-violet-300",
+  under_delivery: "bg-orange-300",
+  delivered:      "bg-emerald-400",
+  cancelled:      "bg-gray-300 opacity-40",
+};
+
+const BOOK_STATUS_LABEL: Record<BookStatus, string> = {
+  deposit:        "Deposit",
+  paid:           "Paid",
+  bought:         "Bought",
+  under_delivery: "Under Delivery",
+  delivered:      "Delivered",
+  cancelled:      "Cancelled",
+};
+
 function AddBooksDialog({
   orderId,
   open,
@@ -175,20 +193,19 @@ function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
           <p className="text-xs text-muted-foreground">{ob.publisher_name}</p>
         </div>
         <Select value={ob.status} onValueChange={(v) => v && handleStatusChange(v as BookStatus)}>
-          <SelectTrigger className="w-40 h-8 text-xs bg-primary text-white border-none hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90">
+          <SelectTrigger className="min-w-44 h-8 text-sm bg-primary text-white border-none hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90 [&_svg]:text-white/70">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {BOOK_STATUSES.map((s) => {
               const disabled = s === "paid" && ob.outstanding_amount > 0;
               return (
-                <SelectItem key={s} value={s} className="text-xs" disabled={disabled}>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={s} />
-                    {disabled && (
-                      <span className="text-muted-foreground text-xs">(clear balance first)</span>
-                    )}
-                  </div>
+                <SelectItem key={s} value={s} disabled={disabled}>
+                  <span className={`size-2.5 rounded-full shrink-0 ${BOOK_STATUS_DOT[s]}`} />
+                  <span>{BOOK_STATUS_LABEL[s]}</span>
+                  {disabled && (
+                    <span className="ml-auto text-xs text-muted-foreground">balance due</span>
+                  )}
                 </SelectItem>
               );
             })}
@@ -424,7 +441,7 @@ export default function OrderDetailPage({
         </div>
         <Card>
           <CardContent className="pt-4">
-            {order.order_books.map((ob) => (
+            {[...order.order_books].sort((a, b) => a.id - b.id).map((ob) => (
               <OrderBookRow key={ob.id} ob={ob} orderId={Number(id)} />
             ))}
           </CardContent>
