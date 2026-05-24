@@ -40,7 +40,7 @@
   --font-sans: IBM Plex Sans, ui-sans-serif, sans-serif, system-ui;
   --font-serif: IBM Plex Serif, ui-serif, serif;
   --font-mono: IBM Plex Mono, ui-monospace, monospace;
-  --radius: 1.05rem;
+  --radius: 0.525rem;
   --shadow-x: 0px;
   --shadow-y: 1px;
   --shadow-blur: 2px;
@@ -68,7 +68,7 @@
   --popover-foreground: rgb(245, 245, 245);
   --primary: rgb(120, 148, 128);
   --primary-foreground: rgb(0, 0, 0);
-  --secondary: rgb(26, 26, 26);
+  --secondary: rgb(52, 58, 54);
   --secondary-foreground: rgb(245, 245, 245);
   --muted: rgb(26, 26, 26);
   --muted-foreground: rgb(160, 160, 160);
@@ -95,7 +95,7 @@
   --font-sans: IBM Plex Sans, ui-sans-serif, sans-serif, system-ui;
   --font-serif: IBM Plex Serif, ui-serif, serif;
   --font-mono: IBM Plex Mono, ui-monospace, monospace;
-  --radius: 1.05rem;
+  --radius: 0.525rem;
   --shadow-x: 0px;
   --shadow-y: 1px;
   --shadow-blur: 2px;
@@ -172,4 +172,13 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+}
+
+@keyframes theme-reveal {
+  from { clip-path: circle(0% at var(--vt-x) var(--vt-y)); }
+  to   { clip-path: circle(var(--vt-r) at var(--vt-x) var(--vt-y)); }
+}
+
+::view-transition-new(root) {
+  animation: theme-reveal 500ms ease-in-out;
 }

@@ -1,26 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useBooks, useCreateBook, useDeleteBook } from "@/hooks/useBooks";
-import { usePublishers, useCreatePublisher } from "@/hooks/usePublishers";
+import { useBooks, useDeleteBook } from "@/hooks/useBooks";
 import { PageShell } from "@/components/PageShell";
+import { AddBookDialog } from "@/components/AddBookDialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -39,15 +23,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Book, PsChargeType, PS_CHARGE_RATES } from "@/lib/api";
+import { Book, PS_CHARGE_RATES } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
 
-const PS_CHARGE_OPTIONS: { value: PsChargeType; label: string }[] = [
-  { value: "premium", label: "Premium (RM 10)" },
-  { value: "hard_cover", label: "Hard Cover (RM 8)" },
-  { value: "soft_cover", label: "Soft Cover (RM 5)" },
-];
+const PS_CHARGE_LABELS: Record<string, string> = {
+  soft_cover: "Soft Cover",
+  hard_cover: "Hard Cover",
+  premium:    "Premium",
+};
 
 function BookRow({ book, onDelete }: { book: Book; onDelete: () => void }) {
   return (
@@ -77,176 +69,27 @@ function BookRow({ book, onDelete }: { book: Book; onDelete: () => void }) {
   );
 }
 
-function AddBookDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const createBook = useCreateBook();
-  const createPublisher = useCreatePublisher();
-  const { data: publishers } = usePublishers();
-
-  const [title, setTitle] = useState("");
-  const [publisherId, setPublisherId] = useState<string>("");
-  const [newPublisherName, setNewPublisherName] = useState("");
-  const [showNewPublisher, setShowNewPublisher] = useState(false);
-  const [psCharge, setPsCharge] = useState<PsChargeType | "">("");
-  const [totalPrice, setTotalPrice] = useState("");
-  const [depositAmount, setDepositAmount] = useState("");
-
-  function reset() {
-    setTitle("");
-    setPublisherId("");
-    setNewPublisherName("");
-    setShowNewPublisher(false);
-    setPsCharge("");
-    setTotalPrice("");
-    setDepositAmount("");
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    let resolvedPublisherId = Number(publisherId);
-
-    if (showNewPublisher && newPublisherName.trim()) {
-      const pub = await createPublisher.mutateAsync({ name: newPublisherName.trim() });
-      resolvedPublisherId = pub.id;
-    }
-
-    if (!resolvedPublisherId || !psCharge) return;
-
-    await createBook.mutateAsync({
-      title,
-      publisher_id: resolvedPublisherId,
-      ps_charge: psCharge,
-      total_price: totalPrice,
-      deposit_amount: depositAmount || "0",
-    });
-    reset();
-    onClose();
-  }
-
-  const isPending = createBook.isPending || createPublisher.isPending;
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add Book</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <Label>Title *</Label>
-            <Input
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Book title"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label>Publisher *</Label>
-            {showNewPublisher ? (
-              <div className="flex gap-2">
-                <Input
-                  value={newPublisherName}
-                  onChange={(e) => setNewPublisherName(e.target.value)}
-                  placeholder="New publisher name"
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowNewPublisher(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <Select value={publisherId} onValueChange={(v) => v && setPublisherId(v)}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Select publisher…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(publishers ?? []).map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowNewPublisher(true)}
-                >
-                  <Plus size={14} />
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label>PS Charge *</Label>
-            <Select value={psCharge} onValueChange={(v) => v && setPsCharge(v as PsChargeType)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select PS charge type…" />
-              </SelectTrigger>
-              <SelectContent>
-                {PS_CHARGE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Total price (RM) *</Label>
-              <Input
-                required
-                type="number"
-                step="0.01"
-                min="0"
-                value={totalPrice}
-                onChange={(e) => setTotalPrice(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Deposit paid (RM)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Adding…" : "Add Book"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default function BooksPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [publisherFilter, setPublisherFilter] = useState("all");
+  const [psFilter, setPsFilter] = useState("all");
 
   const { data: books, isLoading } = useBooks();
   const deleteBook = useDeleteBook();
+
+  const publishers = Array.from(new Set((books ?? []).map((b) => b.publisher_name))).sort();
+
+  const filtered = (books ?? []).filter((b) => {
+    const matchesSearch =
+      b.title.toLowerCase().includes(search.toLowerCase()) ||
+      b.publisher_name.toLowerCase().includes(search.toLowerCase());
+    const matchesPublisher = publisherFilter === "all" || b.publisher_name === publisherFilter;
+    const matchesPs = psFilter === "all" || b.ps_charge === psFilter;
+    return matchesSearch && matchesPublisher && matchesPs;
+  });
 
   async function handleDelete() {
     if (deleteId == null) return;
@@ -264,6 +107,46 @@ export default function BooksPage() {
         </Button>
       }
     >
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Search</span>
+          <Input
+            placeholder="Search by title or publisher…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-80 border-foreground/20"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Publisher</span>
+          <Select value={publisherFilter} onValueChange={(v) => v && setPublisherFilter(v)}>
+            <SelectTrigger className="w-48 border-foreground/20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All publishers</SelectItem>
+              {publishers.map((p) => (
+                <SelectItem key={p} value={p}>{p}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">PS Charge</span>
+          <Select value={psFilter} onValueChange={(v) => v && setPsFilter(v)}>
+            <SelectTrigger className="w-40 border-foreground/20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              <SelectItem value="soft_cover">Soft Cover</SelectItem>
+              <SelectItem value="hard_cover">Hard Cover</SelectItem>
+              <SelectItem value="premium">Premium</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -283,17 +166,17 @@ export default function BooksPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(books ?? []).map((book) => (
+            {filtered.map((book) => (
               <BookRow
                 key={book.id}
                 book={book}
                 onDelete={() => setDeleteId(book.id)}
               />
             ))}
-            {books?.length === 0 && (
+            {filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
-                  No books found. Add one to get started.
+                  {books?.length === 0 ? "No books found. Add one to get started." : "No books match your filters."}
                 </TableCell>
               </TableRow>
             )}

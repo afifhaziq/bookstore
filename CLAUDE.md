@@ -83,7 +83,7 @@ npm run lint       # ESLint
 - **`app/page.tsx`** — Redirects `/` → `/dashboard`.
 - **`app/login/page.tsx`** — Email/password login via Supabase Auth.
 - **`app/(dashboard)/layout.tsx`** — Auth guard: checks session on mount, redirects to `/login` if none. Wraps children in `<SidebarProvider>` + `<AppSidebar>` (collapsible icon-mode sidebar) + `<SidebarInset>`.
-- **`app/(dashboard)/dashboard/page.tsx`** — Book status counts + outstanding books table.
+- **`app/(dashboard)/dashboard/page.tsx`** — Book status counts card grid + two tabbed views: "Event Day" (books with deposit/paid status grouped by publisher, expandable to show linked orders) and "Packaging & Shipping" (all active orders with address, postage, and outstanding balance). Tab sub-components live in `event-day-table.tsx` and `packaging-table.tsx`.
 - **`app/(dashboard)/customers/`** — List with search + Add dialog; `[id]` shows customer orders.
 - **`app/(dashboard)/orders/`** — List; `[id]` has inline editing of book status/deposit, cancel, address edit; `new/` is a 3-step stepper (customer → select existing books → delivery details).
 - **`app/(dashboard)/books/page.tsx`** — Filterable books table with delete.
@@ -91,11 +91,21 @@ npm run lint       # ESLint
 - **`lib/auth.ts`** — Thin wrappers around `supabase.auth`: `signIn`, `signOut`, `getSession`, `getAccessToken`.
 - **`hooks/`** — TanStack Query hooks (`useBooks`, `useCreateBook`, `useDeleteBook`, `usePublishers`, `useCreatePublisher`, `useCustomers`, `useOrders`, `useCreateOrder`, `useUpdateOrder`, `useAddCopiesToOrder`, `useUpdateOrderBook`, `useCancelOrder`, `useDashboard`) with cache invalidation on mutations.
 - **`providers/QueryProvider.tsx`** — `QueryClient` with `staleTime: 30s`, `retry: 1`.
+- **`components/PageShell.tsx`** — Standard page wrapper with title + optional action slot. Use for every dashboard page.
+- **`components/AddBookDialog.tsx`** — Reusable dialog for creating a book catalog entry (title, publisher with inline create, ps_charge, total_price, deposit_amount). Accepts `onSuccess(book)` callback — used by books page and the new-order stepper.
+- **`components/StatusBadge.tsx`** — Colored badge for `BookStatus`/`OrderStatus` values.
+- **`components/PostageBadge.tsx`** — Colored badge for `PostageType` values.
+- **`components/PriceSummary.tsx`** — Three-column Total/Deposit/Outstanding price display.
+- **`components/ui/tabs.tsx`** — Base UI tabs wrapper. Named exports: `TabsRoot`, `TabsList`, `TabsTrigger`, `TabsContent`. Built on `@base-ui/react/tabs` (not shadcn Tabs).
+- **`components/ui/data-table.tsx`** — TanStack Table wrapper with client-side sorting. Generic `DataTable<TData, TValue>` takes `columns: ColumnDef[]`, `data`, and optional `defaultSorting`.
+
+`lib/api.ts` also exports TypeScript types (`BookStatus`, `PostageType`, `PsChargeType`) and constants (`PS_CHARGE_RATES`) — import from there rather than redefining.
 
 ### Key Constraints
 
 - The shadcn install uses `@base-ui/react/button`, which does **not** support `asChild`. Use `buttonVariants()` as `className` on a plain `<Link>` instead of wrapping `<Link>` in `<Button>`. For shadcn Sidebar's `SidebarMenuButton`, use the `render` prop instead: `render={<Link href={href} />}`.
 - Base UI Select's `onValueChange` passes `value | null` — always null-guard before using the value.
+- Tabs use Base UI (`@base-ui/react/tabs`) via `components/ui/tabs.tsx`. Import `TabsRoot`, `TabsList`, `TabsTrigger`, `TabsContent` — do not use shadcn's `Tabs`.
 - Next.js 16 App Router: use `use(params)` to unwrap params in client components (not `params.id` directly). See `frontend/AGENTS.md` for the reminder to read `node_modules/next/dist/docs/` before writing Next.js code.
 - Route groups like `(dashboard)` don't add URL segments. `app/(dashboard)/page.tsx` and `app/page.tsx` would both map to `/` — conflict. Dashboard lives at `app/(dashboard)/dashboard/page.tsx`.
 

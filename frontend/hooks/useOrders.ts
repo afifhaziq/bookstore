@@ -58,6 +58,7 @@ export function useUpdateOrderBook(orderId: number) {
       api.orders.updateOrderBook(orderId, obId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orders", orderId] });
+      qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });

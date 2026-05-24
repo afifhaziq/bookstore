@@ -1,25 +1,25 @@
 "use client";
 
 import { useDashboard } from "@/hooks/useDashboard";
+import { useOrders } from "@/hooks/useOrders";
 import { PageShell } from "@/components/PageShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  TabsRoot,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
+import { EventDayTable } from "./event-day-table";
+import { PackagingTable } from "./packaging-table";
 
 export default function DashboardPage() {
-  const { data, isLoading, error } = useDashboard();
+  const { data, isLoading: dashLoading, error } = useDashboard();
+  const { data: orders, isLoading: ordersLoading } = useOrders();
+
+  const isLoading = dashLoading || ordersLoading;
 
   if (isLoading) {
     return (
@@ -30,7 +30,7 @@ export default function DashboardPage() {
           ))}
         </div>
         <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-10 w-full" />
           ))}
         </div>
@@ -52,6 +52,7 @@ export default function DashboardPage() {
 
   return (
     <PageShell title="Dashboard">
+      {/* Status summary cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {(
           [
@@ -89,41 +90,21 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div>
-        <h2 className="text-lg font-semibold mb-3">
-          Copies with Outstanding Balance
-        </h2>
-        {data.copies_with_outstanding.length === 0 ? (
-          <p className="text-muted-foreground text-sm">All balances settled.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Publisher</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Outstanding</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.copies_with_outstanding.map((ob) => (
-                <TableRow key={ob.id}>
-                  <TableCell className="font-medium">{ob.title}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {ob.publisher_name}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={ob.status} />
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-destructive">
-                    RM {Number(ob.outstanding_amount).toFixed(2)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+      {/* Tabbed views */}
+      <TabsRoot defaultValue="event-day">
+        <TabsList>
+          <TabsTrigger value="event-day">Event Day</TabsTrigger>
+          <TabsTrigger value="packaging">Packaging &amp; Shipping</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="event-day">
+          <EventDayTable orders={orders ?? []} />
+        </TabsContent>
+
+        <TabsContent value="packaging">
+          <PackagingTable orders={orders ?? []} />
+        </TabsContent>
+      </TabsRoot>
     </PageShell>
   );
 }

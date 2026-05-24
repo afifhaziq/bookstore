@@ -2,14 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
 import {
   BookOpen,
   LayoutDashboard,
   LogOut,
-  Moon,
   ShoppingBag,
-  Sun,
   Users,
 } from "lucide-react";
 import { signOut } from "@/lib/auth";
@@ -24,7 +21,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
+import { ThemeSwitch } from "@/components/ui/theme-switch";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -36,16 +35,7 @@ const NAV = [
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [dark, setDark] = useState(
-    () => typeof document !== "undefined" && document.documentElement.classList.contains("dark")
-  );
-
-  function toggleTheme() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("theme", next ? "dark" : "light");
-  }
+  const { state } = useSidebar();
 
   async function handleSignOut() {
     await signOut();
@@ -96,13 +86,12 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={toggleTheme}
-              tooltip={dark ? "Light mode" : "Dark mode"}
-            >
-              {dark ? <Sun /> : <Moon />}
-              <span>{dark ? "Light mode" : "Dark mode"}</span>
-            </SidebarMenuButton>
+            <div className="flex items-center gap-2 px-2 py-1">
+              <ThemeSwitch iconSize={16} />
+              {state === "expanded" && (
+                <span className="text-sm text-sidebar-foreground/70">Toggle theme</span>
+              )}
+            </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={handleSignOut} tooltip="Sign out">

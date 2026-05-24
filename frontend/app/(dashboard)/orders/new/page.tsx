@@ -6,6 +6,7 @@ import { useCustomers } from "@/hooks/useCustomers";
 import { useCreateOrder } from "@/hooks/useOrders";
 import { useBooks } from "@/hooks/useBooks";
 import { PageShell } from "@/components/PageShell";
+import { AddBookDialog } from "@/components/AddBookDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PostageType, PS_CHARGE_RATES } from "@/lib/api";
+import { PostageType, PS_CHARGE_RATES, Book } from "@/lib/api";
+import { Plus } from "lucide-react";
 
 const POSTAGE_OPTIONS: { value: PostageType; label: string }[] = [
   { value: "semenanjung", label: "Semenanjung (RM 8)" },
@@ -33,7 +35,15 @@ export default function NewOrderPage() {
   const { data: customers } = useCustomers(customerSearch || undefined);
 
   const [steppers, setSteppers] = useState<Record<number, number>>({});
+  const [addBookOpen, setAddBookOpen] = useState(false);
+  const [bookSearch, setBookSearch] = useState("");
   const { data: availableBooks } = useBooks();
+
+  const filteredBooks = (availableBooks ?? []).filter(
+    (b) =>
+      b.title.toLowerCase().includes(bookSearch.toLowerCase()) ||
+      b.publisher_name.toLowerCase().includes(bookSearch.toLowerCase())
+  );
 
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
@@ -106,7 +116,7 @@ export default function NewOrderPage() {
             onChange={(e) => setCustomerSearch(e.target.value)}
             className="max-w-sm"
           />
-          <div className="space-y-2 max-h-80 overflow-y-auto">
+          <div className="space-y-2">
             {(customers ?? []).map((c) => (
               <button
                 key={c.id}
@@ -131,16 +141,30 @@ export default function NewOrderPage() {
 
       {step === 2 && (
         <div className="space-y-4">
-          <h2 className="font-medium">Select books for {selectedCustomer?.name}</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium">Select books for {selectedCustomer?.name}</h2>
+            <Button size="sm" variant="outline" onClick={() => setAddBookOpen(true)}>
+              <Plus size={14} className="mr-1" />
+              New book
+            </Button>
+          </div>
+          <Input
+            placeholder="Search by title or publisher…"
+            value={bookSearch}
+            onChange={(e) => setBookSearch(e.target.value)}
+            className="max-w-sm"
+          />
           {!availableBooks || availableBooks.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center">
               <p className="text-sm text-muted-foreground">
                 No books in catalog. Add books on the Books page first.
               </p>
             </div>
+          ) : filteredBooks.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">No books match your search.</p>
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {availableBooks.map((book) => {
+            <div className="space-y-2">
+              {filteredBooks.map((book) => {
                 const count = steppers[book.id] ?? 0;
                 return (
                   <div
@@ -190,6 +214,14 @@ export default function NewOrderPage() {
               Next: Delivery
             </Button>
           </div>
+
+          <AddBookDialog
+            open={addBookOpen}
+            onClose={() => setAddBookOpen(false)}
+            onSuccess={(book: Book) =>
+              setSteppers((prev) => ({ ...prev, [book.id]: (prev[book.id] ?? 0) + 1 }))
+            }
+          />
         </div>
       )}
 

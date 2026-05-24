@@ -1,22 +1,14 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useOrder, useCancelOrder, useUpdateOrder, useAddCopiesToOrder, useUpdateOrderBook } from "@/hooks/useOrders";
 import { useBooks } from "@/hooks/useBooks";
 import { PageShell } from "@/components/PageShell";
-import { StatusBadge } from "@/components/StatusBadge";
-import { PostageBadge } from "@/components/PostageBadge";
 import { PriceSummary } from "@/components/PriceSummary";
+import { GlowingBadge, type GlowingBadgeVariant } from "@/components/ui/glowing-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { ChevronLeft, Plus } from "lucide-react";
 import { BookStatus, OrderBook, CopySpec, PS_CHARGE_RATES } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const BOOK_STATUSES: BookStatus[] = [
   "deposit",
@@ -47,15 +40,6 @@ const BOOK_STATUSES: BookStatus[] = [
   "cancelled",
 ];
 
-const BOOK_STATUS_DOT: Record<BookStatus, string> = {
-  deposit:        "bg-yellow-300",
-  paid:           "bg-blue-300",
-  bought:         "bg-violet-300",
-  under_delivery: "bg-orange-300",
-  delivered:      "bg-emerald-400",
-  cancelled:      "bg-gray-300 opacity-40",
-};
-
 const BOOK_STATUS_LABEL: Record<BookStatus, string> = {
   deposit:        "Deposit",
   paid:           "Paid",
@@ -64,6 +48,142 @@ const BOOK_STATUS_LABEL: Record<BookStatus, string> = {
   delivered:      "Delivered",
   cancelled:      "Cancelled",
 };
+
+const BOOK_STATUS_VARIANT: Record<BookStatus, GlowingBadgeVariant> = {
+  deposit:        "deposit",
+  paid:           "paid",
+  bought:         "bought",
+  under_delivery: "warning",
+  delivered:      "success",
+  cancelled:      "neutral",
+};
+
+const ORDER_STATUS_VARIANT: Record<string, GlowingBadgeVariant> = {
+  active:    "success",
+  cancelled: "neutral",
+};
+
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  active:    "Active",
+  cancelled: "Cancelled",
+};
+
+const POSTAGE_VARIANT: Record<string, GlowingBadgeVariant> = {
+  semenanjung:   "info",
+  sabah_sarawak: "warning",
+};
+
+const POSTAGE_LABEL: Record<string, string> = {
+  semenanjung:   "Semenanjung",
+  sabah_sarawak: "Sabah/Sarawak",
+};
+
+function OrderBookStatusBadge({
+  ob,
+  orderId,
+}: {
+  ob: OrderBook;
+  orderId: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const update = useUpdateOrderBook(orderId);
+
+  useEffect(() => {
+    if (!open) return;
+    function onMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [open]);
+
+  async function handleSelect(status: BookStatus) {
+    if (status === ob.status) { setOpen(false); return; }
+    if (status === "paid" && ob.outstanding_amount > 0) return;
+    await update.mutateAsync({ obId: ob.id, data: { status } });
+    setOpen(false);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={update.isPending}
+        className="cursor-pointer disabled:opacity-50"
+      >
+        <GlowingBadge variant={BOOK_STATUS_VARIANT[ob.status]}>
+          {BOOK_STATUS_LABEL[ob.status]}
+        </GlowingBadge>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 flex flex-col gap-1 rounded-lg border bg-popover p-1.5 shadow-md">
+          {BOOK_STATUSES.map((s) => {
+            const disabled = s === "paid" && ob.outstanding_amount > 0;
+            return (
+              <div key={s} className="relative flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSelect(s)}
+                  disabled={disabled || update.isPending}
+                  className={cn(
+                    "cursor-pointer rounded-full px-1 py-0.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40",
+                    s !== ob.status && "opacity-40"
+                  )}
+                >
+                  <GlowingBadge variant={BOOK_STATUS_VARIANT[s]}>
+                    {BOOK_STATUS_LABEL[s]}
+                  </GlowingBadge>
+                </button>
+                {disabled && (
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                    balance due
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrderBookStatusMobile({ ob, orderId }: { ob: OrderBook; orderId: number }) {
+  const update = useUpdateOrderBook(orderId);
+
+  async function handleSelect(status: BookStatus) {
+    if (status === ob.status) return;
+    if (status === "paid" && ob.outstanding_amount > 0) return;
+    await update.mutateAsync({ obId: ob.id, data: { status } });
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 sm:hidden">
+      {BOOK_STATUSES.map((s) => {
+        const disabled = s === "paid" && ob.outstanding_amount > 0;
+        return (
+          <button
+            key={s}
+            type="button"
+            onClick={() => handleSelect(s)}
+            disabled={disabled || update.isPending}
+            className={cn(
+              "cursor-pointer rounded-full px-1 py-0.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40",
+              s !== ob.status && "opacity-40"
+            )}
+          >
+            <GlowingBadge variant={BOOK_STATUS_VARIANT[s]}>
+              {BOOK_STATUS_LABEL[s]}
+            </GlowingBadge>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function AddBooksDialog({
   orderId,
@@ -175,14 +295,13 @@ function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
   const [editing, setEditing] = useState(false);
   const [deposit, setDeposit] = useState(ob.deposit_amount.toString());
 
-  async function handleStatusChange(status: BookStatus) {
-    if (status === "paid" && ob.outstanding_amount > 0) return;
-    await updateOrderBook.mutateAsync({ obId: ob.id, data: { status } });
-  }
-
   async function handleDepositSave() {
     await updateOrderBook.mutateAsync({ obId: ob.id, data: { deposit_amount: deposit } });
     setEditing(false);
+  }
+
+  async function handlePaidFull() {
+    await updateOrderBook.mutateAsync({ obId: ob.id, data: { deposit_amount: ob.total_price.toString() } });
   }
 
   return (
@@ -192,26 +311,12 @@ function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
           <p className="font-medium text-sm">{ob.title}</p>
           <p className="text-xs text-muted-foreground">{ob.publisher_name}</p>
         </div>
-        <Select value={ob.status} onValueChange={(v) => v && handleStatusChange(v as BookStatus)}>
-          <SelectTrigger className="min-w-44 h-8 text-sm bg-primary text-white border-none hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90 [&_svg]:text-white/70">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {BOOK_STATUSES.map((s) => {
-              const disabled = s === "paid" && ob.outstanding_amount > 0;
-              return (
-                <SelectItem key={s} value={s} disabled={disabled}>
-                  <span className={`size-2.5 rounded-full shrink-0 ${BOOK_STATUS_DOT[s]}`} />
-                  <span>{BOOK_STATUS_LABEL[s]}</span>
-                  {disabled && (
-                    <span className="ml-auto text-xs text-muted-foreground">balance due</span>
-                  )}
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
+        <div className="hidden sm:block">
+          <OrderBookStatusBadge ob={ob} orderId={orderId} />
+        </div>
       </div>
+
+      <OrderBookStatusMobile ob={ob} orderId={orderId} />
 
       <div className="flex items-end gap-3">
         <PriceSummary
@@ -239,16 +344,30 @@ function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
             </Button>
           </div>
         ) : (
-          <Button
-            size="sm"
-            className="h-7 text-xs px-2"
-            onClick={() => {
-              setDeposit(ob.deposit_amount.toString());
-              setEditing(true);
-            }}
-          >
-            Edit deposit
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs px-2"
+              onClick={() => {
+                setDeposit(ob.deposit_amount.toString());
+                setEditing(true);
+              }}
+            >
+              Edit deposit
+            </Button>
+            {ob.outstanding_amount > 0 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs px-2"
+                onClick={handlePaidFull}
+                disabled={updateOrderBook.isPending}
+              >
+                Paid full
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -264,6 +383,7 @@ export default function OrderDetailPage({
   const { data: order, isLoading, error } = useOrder(Number(id));
   const cancelOrder = useCancelOrder();
   const updateOrder = useUpdateOrder(Number(id));
+  const updateOrderBook = useUpdateOrderBook(Number(id));
   const [cancelOpen, setCancelOpen] = useState(false);
   const [addBooksOpen, setAddBooksOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState(false);
@@ -302,6 +422,15 @@ export default function OrderDetailPage({
     setEditingPostage(false);
   }
 
+  async function handlePayAllFull() {
+    const outstanding = order!.order_books.filter((ob) => ob.outstanding_amount > 0);
+    await Promise.all(
+      outstanding.map((ob) =>
+        updateOrderBook.mutateAsync({ obId: ob.id, data: { deposit_amount: ob.total_price.toString() } })
+      )
+    );
+  }
+
   return (
     <PageShell
       title={`Order #${order.id}`}
@@ -326,8 +455,14 @@ export default function OrderDetailPage({
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex items-center gap-2">
-              <StatusBadge status={order.status} />
-              {order.postage_type && <PostageBadge type={order.postage_type} />}
+              <GlowingBadge variant={ORDER_STATUS_VARIANT[order.status]}>
+                {ORDER_STATUS_LABEL[order.status]}
+              </GlowingBadge>
+              {order.postage_type && (
+                <GlowingBadge variant={POSTAGE_VARIANT[order.postage_type]}>
+                  {POSTAGE_LABEL[order.postage_type]}
+                </GlowingBadge>
+              )}
             </div>
 
             <div>
@@ -433,10 +568,22 @@ export default function OrderDetailPage({
             Books ({order.order_books.length})
           </h2>
           {order.status === "active" && (
-            <Button size="sm" variant="outline" onClick={() => setAddBooksOpen(true)}>
-              <Plus size={14} className="mr-1" />
-              Add Books
-            </Button>
+            <div className="flex items-center gap-2">
+              {order.order_books.some((ob) => ob.outstanding_amount > 0) && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handlePayAllFull}
+                  disabled={updateOrderBook.isPending}
+                >
+                  Paid full — all
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => setAddBooksOpen(true)}>
+                <Plus size={14} className="mr-1" />
+                Add Books
+              </Button>
+            </div>
           )}
         </div>
         <Card>
