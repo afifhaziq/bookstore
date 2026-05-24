@@ -50,6 +50,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
     phone_number = Column(String, nullable=False)
+    default_address = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     orders = relationship("Order", back_populates="user")
 

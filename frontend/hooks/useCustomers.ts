@@ -22,3 +22,20 @@ export function useCreateCustomer() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["customers"] }),
   });
 }
+
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: number; name?: string; phone_number?: string; default_address?: string }) =>
+      api.customers.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["customers"] }),
+  });
+}
+
+export function useDeleteCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.customers.delete,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["customers"] }),
+  });
+}

@@ -95,6 +95,7 @@ export interface Customer {
   id: number;
   name: string;
   phone_number: string;
+  default_address: string | null;
   created_at: string;
 }
 
@@ -140,11 +141,18 @@ export const api = {
         `/customers/${search ? `?search=${encodeURIComponent(search)}` : ""}`
       ),
     get: (id: number) => request<CustomerDetail>(`/customers/${id}`),
-    create: (data: { name: string; phone_number: string }) =>
+    create: (data: { name: string; phone_number: string; default_address?: string }) =>
       request<Customer>("/customers/", {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    update: (id: number, data: { name?: string; phone_number?: string; default_address?: string }) =>
+      request<Customer>(`/customers/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    delete: (id: number) =>
+      request<void>(`/customers/${id}`, { method: "DELETE" }),
   },
 
   orders: {

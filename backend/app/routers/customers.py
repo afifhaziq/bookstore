@@ -7,6 +7,7 @@ from app.auth import get_current_user
 from app.models import User, Order, OrderBook, Book, PS_CHARGE_RATES
 from app.schemas import (
     CustomerCreate,
+    CustomerUpdate,
     CustomerResponse,
     CustomerDetail,
     OrderDetail,
@@ -82,6 +83,40 @@ async def create_customer(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@router.patch("/{customer_id}", response_model=CustomerResponse)
+async def update_customer(
+    customer_id: int,
+    data: CustomerUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_current_user),
+):
+    result = await db.execute(select(User).where(User.id == customer_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    if data.name is not None:
+        user.name = data.name
+    if data.phone_number is not None:
+        user.phone_number = data.phone_number
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@router.delete("/{customer_id}", status_code=204)
+async def delete_customer(
+    customer_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_current_user),
+):
+    result = await db.execute(select(User).where(User.id == customer_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    await db.delete(user)
+    await db.commit()
 
 
 @router.get("/{customer_id}", response_model=CustomerDetail)

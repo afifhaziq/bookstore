@@ -9,14 +9,22 @@ from app.models import BookStatus, OrderStatus, PostageType, PsChargeType
 class CustomerCreate(BaseModel):
     name: str
     phone_number: str
+    default_address: str | None = None
 
 
 class CustomerResponse(BaseModel):
     id: int
     name: str
     phone_number: str
+    default_address: str | None = None
     created_at: datetime
     model_config = {"from_attributes": True}
+
+
+class CustomerUpdate(BaseModel):
+    name: str | None = None
+    phone_number: str | None = None
+    default_address: str | None = None
 
 
 class PublisherCreate(BaseModel):

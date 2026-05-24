@@ -109,7 +109,12 @@ export default function NewOrderPage() {
 
       {step === 1 && (
         <div className="space-y-4">
-          <h2 className="font-medium">Select a customer</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium">Select a customer</h2>
+            <Button onClick={() => setStep(2)} disabled={!customerId} size="sm">
+              Next: Books
+            </Button>
+          </div>
           <Input
             placeholder="Search by name or phone…"
             value={customerSearch}
@@ -121,7 +126,7 @@ export default function NewOrderPage() {
               <button
                 key={c.id}
                 type="button"
-                onClick={() => setCustomerId(c.id)}
+                onClick={() => { setCustomerId(c.id); setAddress(c.default_address ?? ""); }}
                 className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
                   customerId === c.id ? "border-primary bg-primary/5" : "hover:bg-accent"
                 }`}
@@ -143,10 +148,20 @@ export default function NewOrderPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-medium">Select books for {selectedCustomer?.name}</h2>
-            <Button size="sm" variant="outline" onClick={() => setAddBookOpen(true)}>
-              <Plus size={14} className="mr-1" />
-              New book
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setAddBookOpen(true)}>
+                <Plus size={14} className="mr-1" />
+                New book
+              </Button>
+              <Button size="sm" onClick={() => setStep(3)} disabled={totalSelected === 0}>
+                Next: Delivery
+                {totalSelected > 0 && (
+                  <span className="ml-1.5 rounded-full bg-primary-foreground/20 px-1.5 py-0.5 text-xs tabular-nums">
+                    {totalSelected}
+                  </span>
+                )}
+              </Button>
+            </div>
           </div>
           <Input
             placeholder="Search by title or publisher…"
@@ -237,6 +252,7 @@ export default function NewOrderPage() {
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Full delivery address"
                 rows={3}
+                className="border-foreground/20"
               />
             </div>
             <div className="space-y-1">
@@ -246,6 +262,7 @@ export default function NewOrderPage() {
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Any special instructions…"
                 rows={2}
+                className="border-foreground/20"
               />
             </div>
             <div className="space-y-1">
@@ -254,7 +271,7 @@ export default function NewOrderPage() {
                 value={postageType}
                 onValueChange={(v) => v && setPostageType(v as PostageType)}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full border-foreground/20">
                   <SelectValue placeholder="Select postage…" />
                 </SelectTrigger>
                 <SelectContent>
