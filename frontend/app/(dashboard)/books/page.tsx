@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
+import { GlowingBadge, type GlowingBadgeVariant } from "@/components/ui/glowing-badge";
 
 const PS_CHARGE_LABELS: Record<string, string> = {
   soft_cover: "Soft Cover",
@@ -41,13 +42,21 @@ const PS_CHARGE_LABELS: Record<string, string> = {
   premium:    "Premium",
 };
 
+const PS_CHARGE_VARIANT: Record<string, GlowingBadgeVariant> = {
+  premium:    "gold",
+  hard_cover: "purple",
+  soft_cover: "silver",
+};
+
 function BookRow({ book, onDelete }: { book: Book; onDelete: () => void }) {
   return (
     <TableRow>
       <TableCell className="font-medium">{book.title}</TableCell>
       <TableCell className="text-muted-foreground">{book.publisher_name}</TableCell>
-      <TableCell className="text-muted-foreground capitalize">
-        {book.ps_charge.replace("_", " ")}
+      <TableCell>
+        <GlowingBadge variant={PS_CHARGE_VARIANT[book.ps_charge]} dot={false}>
+          {PS_CHARGE_LABELS[book.ps_charge]}
+        </GlowingBadge>
       </TableCell>
       <TableCell className="text-right tabular-nums">
         RM {(Number(book.total_price) + PS_CHARGE_RATES[book.ps_charge]).toFixed(2)}

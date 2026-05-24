@@ -100,6 +100,8 @@ async def update_customer(
         user.name = data.name
     if data.phone_number is not None:
         user.phone_number = data.phone_number
+    if data.default_address is not None:
+        user.default_address = data.default_address
     await db.commit()
     await db.refresh(user)
     return user

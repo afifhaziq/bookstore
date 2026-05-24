@@ -13,7 +13,10 @@ export type GlowingBadgeVariant =
   | "neutral"
   | "deposit"
   | "paid"
-  | "bought";
+  | "bought"
+  | "gold"
+  | "purple"
+  | "silver";
 
 const variantStyles: Record<
   GlowingBadgeVariant,
@@ -28,14 +31,19 @@ const variantStyles: Record<
   deposit: { badge: "bg-yellow-500 text-yellow-100", glow: "bg-yellow-500", dot: "bg-yellow-200" },
   paid: { badge: "bg-blue-500 text-blue-100", glow: "bg-blue-500", dot: "bg-blue-200" },
   bought: { badge: "bg-purple-500 text-purple-100", glow: "bg-purple-500", dot: "bg-purple-200" },
+  gold:   { badge: "bg-amber-400 text-amber-950", glow: "bg-amber-400", dot: "bg-amber-700" },
+  purple: { badge: "bg-violet-500 text-violet-100", glow: "bg-violet-500", dot: "bg-violet-200" },
+  silver: { badge: "bg-zinc-200 text-zinc-700", glow: "bg-zinc-300", dot: "bg-zinc-500" },
 };
 
 interface GlowingBadgeProps extends HTMLAttributes<HTMLSpanElement> {
   variant?: GlowingBadgeVariant;
+  dot?: boolean;
 }
 
 export function GlowingBadge({
   variant = "default",
+  dot = true,
   className,
   children,
   ...props
@@ -56,11 +64,13 @@ export function GlowingBadge({
           styles.glow
         )}
       />
-      <motion.span
-        className={cn("size-1.5 shrink-0 rounded-full", styles.dot)}
-        animate={{ scale: [1, 1.5, 1] }}
-        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-      />
+      {dot && (
+        <motion.span
+          className={cn("size-1.5 shrink-0 rounded-full", styles.dot)}
+          animate={{ scale: [1, 1.5, 1] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        />
+      )}
       {children}
     </span>
   );
