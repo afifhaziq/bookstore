@@ -157,3 +157,20 @@ async def cancel_order(
     await db.commit()
     db.expire(order)
     return _build_order_detail(await _load_order(order_id, db))
+
+
+@router.patch("/{order_id}/reactivate", response_model=OrderDetail)
+async def reactivate_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_current_user),
+):
+    order = await _load_order(order_id, db)
+    if order.status != OrderStatus.cancelled:
+        raise HTTPException(status_code=400, detail="Order is not cancelled")
+    order.status = OrderStatus.active
+    for ob in order.order_books:
+        ob.status = BookStatus.deposit
+    await db.commit()
+    db.expire(order)
+    return _build_order_detail(await _load_order(order_id, db))

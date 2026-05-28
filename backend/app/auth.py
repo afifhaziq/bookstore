@@ -28,7 +28,6 @@ async def get_current_user(
     try:
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
-        alg = header.get("alg", "RS256")
 
         jwks = await _get_jwks()
         key = next((k for k in jwks["keys"] if k.get("kid") == kid), None)
@@ -41,6 +40,8 @@ async def get_current_user(
         if key is None:
             raise HTTPException(status_code=401, detail="Invalid token")
 
+        # Use the algorithm declared by the JWKS key itself, not the token header
+        alg = key.get("alg", "RS256")
         payload = jwt.decode(
             token, key, algorithms=[alg], options={"verify_aud": False}
         )
