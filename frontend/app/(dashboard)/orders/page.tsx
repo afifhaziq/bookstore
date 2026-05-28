@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useOrders } from "@/hooks/useOrders";
 import { PageShell } from "@/components/PageShell";
@@ -16,6 +17,7 @@ import {
 import { Order, BookStatus } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const DOT_COLOR: Record<BookStatus, string> = {
   deposit:        "bg-yellow-300",
@@ -59,31 +61,61 @@ function BookDots({ books }: { books: Order["order_books"] }) {
   );
 }
 
-const LEGEND: { status: BookStatus; label: string }[] = [
+const ACTIVE_LEGEND: { status: BookStatus; label: string }[] = [
   { status: "deposit",        label: "Deposit" },
   { status: "paid",           label: "Paid" },
   { status: "bought",         label: "Bought" },
   { status: "under_delivery", label: "In transit" },
   { status: "delivered",      label: "Delivered" },
-  { status: "cancelled",      label: "Cancelled" },
 ];
+
+const ALL_LEGEND = [...ACTIVE_LEGEND, { status: "cancelled" as BookStatus, label: "Cancelled" }];
+
+type FilterMode = "active" | "all";
 
 export default function OrdersPage() {
   const { data: orders, isLoading } = useOrders();
+  const [filter, setFilter] = useState<FilterMode>("active");
+
+  const displayed = (orders ?? []).filter(
+    (o) => filter === "all" || o.status === "active"
+  );
+
+  const legend = filter === "active" ? ACTIVE_LEGEND : ALL_LEGEND;
 
   return (
     <PageShell
       title="Orders"
       action={
-        <Link href="/orders/new" className={buttonVariants({ size: "sm" })}>
-          <Plus size={14} className="mr-1" />
-          New order
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* Status filter */}
+          <div className="flex items-center rounded-lg border p-0.5 gap-0.5">
+            {(["active", "all"] as FilterMode[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setFilter(mode)}
+                className={cn(
+                  "rounded-md px-3 py-1 text-xs font-medium transition-colors capitalize",
+                  filter === mode
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {mode === "active" ? "Active" : "All"}
+              </button>
+            ))}
+          </div>
+          <Link href="/orders/new" className={buttonVariants({ size: "sm" })}>
+            <Plus size={14} className="mr-1" />
+            New order
+          </Link>
+        </div>
       }
     >
       {/* Legend */}
       <div className="flex items-center gap-4 flex-wrap">
-        {LEGEND.map(({ status, label }) => (
+        {legend.map(({ status, label }) => (
           <span key={status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className={`inline-block h-2.5 w-2.5 rounded-full ${DOT_COLOR[status]}`} />
             {label}
@@ -110,7 +142,7 @@ export default function OrdersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(orders ?? []).map((order) => {
+            {displayed.map((order) => {
               const cancelled = order.status === "cancelled";
               return (
                 <TableRow
@@ -150,10 +182,10 @@ export default function OrdersPage() {
                 </TableRow>
               );
             })}
-            {orders?.length === 0 && (
+            {displayed.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
-                  No orders yet.
+                  {filter === "active" ? "No active orders." : "No orders yet."}
                 </TableCell>
               </TableRow>
             )}

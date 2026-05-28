@@ -81,6 +81,7 @@ export interface Order {
   status: OrderStatus;
   postage_type: PostageType | null;
   postage_amount: number | null;
+  postage_paid: boolean;
   address: string;
   note: string | null;
   created_at: string;
@@ -184,6 +185,8 @@ export const api = {
       }),
     cancel: (id: number) =>
       request<Order>(`/orders/${id}/cancel`, { method: "PATCH" }),
+    reactivate: (id: number) =>
+      request<Order>(`/orders/${id}/reactivate`, { method: "PATCH" }),
   },
 
   books: {

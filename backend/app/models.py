@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Integer, String, Text, DateTime, Numeric, Enum, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Numeric, Enum, ForeignKey, Boolean
 from sqlalchemy.orm import relationship, DeclarativeBase
 from sqlalchemy.sql import func
 
@@ -93,6 +93,7 @@ class Order(Base):
         Enum(PostageType, name="postage_type", native_enum=False), nullable=True
     )
     postage_amount = Column(Numeric(10, 2), nullable=True)
+    postage_paid = Column(Boolean, default=False, nullable=False)
     address = Column(String, nullable=False)
     note = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

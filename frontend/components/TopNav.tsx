@@ -41,7 +41,7 @@ export function TopNav() {
           <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <BookOpen className="size-4" />
           </div>
-          <span className="hidden font-semibold text-sm sm:inline">{"Jaslin's Pages"}</span>
+          <span className="hidden font-semibold text-sm sm:inline">Jasbacabuku</span>
         </Link>
 
         {/* Nav links */}

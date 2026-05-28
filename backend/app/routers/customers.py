@@ -45,6 +45,7 @@ def _build_order_detail(order: Order) -> OrderDetail:
         status=order.status,
         postage_type=order.postage_type,
         postage_amount=order.postage_amount,
+        postage_paid=order.postage_paid,
         address=order.address,
         note=order.note,
         created_at=order.created_at,
@@ -146,6 +147,7 @@ async def get_customer(
         id=user.id,
         name=user.name,
         phone_number=user.phone_number,
+        default_address=user.default_address,
         created_at=user.created_at,
         orders=[_build_order_detail(o) for o in user.orders],
     )

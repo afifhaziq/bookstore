@@ -22,7 +22,7 @@ const fontMono = IBM_Plex_Mono({
   weight: ["400", "500"],
 });
 
-export const metadata: Metadata = { title: "Jaslin's Pages" };
+export const metadata: Metadata = { title: "Jasbacabuku" };
 
 export default function RootLayout({
   children,

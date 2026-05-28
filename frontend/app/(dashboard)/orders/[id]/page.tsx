@@ -2,7 +2,7 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useOrder, useCancelOrder, useUpdateOrder, useAddCopiesToOrder, useUpdateOrderBook } from "@/hooks/useOrders";
+import { useOrder, useCancelOrder, useReactivateOrder, useUpdateOrder, useAddCopiesToOrder, useUpdateOrderBook } from "@/hooks/useOrders";
 import { useBooks } from "@/hooks/useBooks";
 import { PageShell } from "@/components/PageShell";
 import { PriceSummary } from "@/components/PriceSummary";
@@ -28,8 +28,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ChevronLeft, Plus } from "lucide-react";
-import { BookStatus, OrderBook, CopySpec, PS_CHARGE_RATES } from "@/lib/api";
+import { BookStatus, OrderBook, CopySpec, PS_CHARGE_RATES, PostageType } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const BOOK_STATUSES: BookStatus[] = [
   "deposit",
@@ -56,6 +57,18 @@ const BOOK_STATUS_VARIANT: Record<BookStatus, GlowingBadgeVariant> = {
   under_delivery: "warning",
   delivered:      "success",
   cancelled:      "neutral",
+};
+
+const PS_CHARGE_LABELS: Record<string, string> = {
+  soft_cover: "Soft Cover",
+  hard_cover: "Hard Cover",
+  premium:    "Premium",
+};
+
+const PS_CHARGE_VARIANT: Record<string, GlowingBadgeVariant> = {
+  premium:    "gold",
+  hard_cover: "purple",
+  soft_cover: "silver",
 };
 
 const ORDER_STATUS_VARIANT: Record<string, GlowingBadgeVariant> = {
@@ -290,7 +303,70 @@ function AddBooksDialog({
   );
 }
 
-function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
+function BulkStatusPicker({
+  selectedCount,
+  onApply,
+  isPending,
+}: {
+  selectedCount: number;
+  onApply: (status: BookStatus) => void;
+  isPending: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setOpen((o) => !o)}
+        disabled={selectedCount === 0 || isPending}
+      >
+        Set status
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 flex flex-col gap-1 rounded-lg border bg-popover p-1.5 shadow-md">
+          {BOOK_STATUSES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => { onApply(s); setOpen(false); }}
+              className="cursor-pointer rounded-full px-1 py-0.5 transition-opacity hover:opacity-80"
+            >
+              <GlowingBadge variant={BOOK_STATUS_VARIANT[s]}>
+                {BOOK_STATUS_LABEL[s]}
+              </GlowingBadge>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrderBookRow({
+  ob,
+  orderId,
+  isActive,
+  isSelected,
+  onToggle,
+}: {
+  ob: OrderBook;
+  orderId: number;
+  isActive: boolean;
+  isSelected: boolean;
+  onToggle: () => void;
+}) {
   const updateOrderBook = useUpdateOrderBook(orderId);
   const [editing, setEditing] = useState(false);
   const [deposit, setDeposit] = useState(ob.deposit_amount.toString());
@@ -307,9 +383,23 @@ function OrderBookRow({ ob, orderId }: { ob: OrderBook; orderId: number }) {
   return (
     <div className="flex flex-col gap-2 py-3 border-b last:border-0">
       <div className="flex items-center justify-between">
-        <div>
-          <p className="font-medium text-sm">{ob.title}</p>
-          <p className="text-xs text-muted-foreground">{ob.publisher_name}</p>
+        <div className="flex items-center gap-3">
+          {isActive && (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onToggle}
+              className="dark:border-muted-foreground"
+            />
+          )}
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="font-medium text-sm">{ob.title}</p>
+              <GlowingBadge variant={PS_CHARGE_VARIANT[ob.ps_charge]} dot={false}>
+                {PS_CHARGE_LABELS[ob.ps_charge]}
+              </GlowingBadge>
+            </div>
+            <p className="text-xs text-muted-foreground">{ob.publisher_name}</p>
+          </div>
         </div>
         <div className="hidden sm:block">
           <OrderBookStatusBadge ob={ob} orderId={orderId} />
@@ -382,14 +472,19 @@ export default function OrderDetailPage({
   const { id } = use(params);
   const { data: order, isLoading, error } = useOrder(Number(id));
   const cancelOrder = useCancelOrder();
+  const reactivateOrder = useReactivateOrder();
   const updateOrder = useUpdateOrder(Number(id));
   const updateOrderBook = useUpdateOrderBook(Number(id));
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
   const [addBooksOpen, setAddBooksOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState(false);
   const [address, setAddress] = useState("");
   const [editingPostage, setEditingPostage] = useState(false);
+  const [postageType, setPostageType] = useState<PostageType | "">("");
   const [postageAmount, setPostageAmount] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
 
   if (isLoading) {
     return (
@@ -412,13 +507,21 @@ export default function OrderDetailPage({
     setCancelOpen(false);
   }
 
+  async function handleReactivate() {
+    await reactivateOrder.mutateAsync(Number(id));
+    setReactivateOpen(false);
+  }
+
   async function handleAddressSave() {
     await updateOrder.mutateAsync({ address });
     setEditingAddress(false);
   }
 
   async function handlePostageSave() {
-    await updateOrder.mutateAsync({ postage_amount: postageAmount });
+    await updateOrder.mutateAsync({
+      postage_type: postageType as PostageType,
+      postage_amount: postageAmount,
+    });
     setEditingPostage(false);
   }
 
@@ -426,9 +529,53 @@ export default function OrderDetailPage({
     const outstanding = order!.order_books.filter((ob) => ob.outstanding_amount > 0);
     await Promise.all(
       outstanding.map((ob) =>
-        updateOrderBook.mutateAsync({ obId: ob.id, data: { deposit_amount: ob.total_price.toString() } })
+        updateOrderBook.mutateAsync({
+          obId: ob.id,
+          data: {
+            deposit_amount: ob.total_price.toString(),
+            status: "paid",
+          },
+        })
       )
     );
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === order!.order_books.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(order!.order_books.map((ob) => ob.id)));
+    }
+  }
+
+  async function handleBulkApply(status: BookStatus) {
+    if (selectedIds.size === 0) return;
+    const targets = order!.order_books.filter((ob) => {
+      if (!selectedIds.has(ob.id)) return false;
+      if (status === "paid" && ob.outstanding_amount > 0) return false;
+      return true;
+    });
+    await Promise.all(
+      targets.map((ob) =>
+        updateOrderBook.mutateAsync({ obId: ob.id, data: { status } })
+      )
+    );
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+  }
+
+  function exitSelectionMode() {
+    setSelectedIds(new Set());
+    setSelectionMode(false);
   }
 
   return (
@@ -439,6 +586,11 @@ export default function OrderDetailPage({
           {order.status === "active" && (
             <Button variant="destructive" size="sm" onClick={() => setCancelOpen(true)}>
               Cancel order
+            </Button>
+          )}
+          {order.status === "cancelled" && (
+            <Button variant="outline" size="sm" onClick={() => setReactivateOpen(true)}>
+              Reactivate order
             </Button>
           )}
           <Link href="/orders" className={buttonVariants({ variant: "outline", size: "sm" })}>
@@ -513,83 +665,185 @@ export default function OrderDetailPage({
             <CardTitle className="text-base">Payment summary</CardTitle>
           </CardHeader>
           <CardContent className="text-sm space-y-2">
-            {order.postage_type && (
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">
-                  Postage ({order.postage_type === "semenanjung" ? "Semenanjung" : "Sabah/Sarawak"})
-                </span>
-                {editingPostage ? (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      className="h-7 w-24 text-xs"
-                      value={postageAmount}
-                      onChange={(e) => setPostageAmount(e.target.value)}
-                    />
-                    <Button size="sm" className="h-7 text-xs px-2" onClick={handlePostageSave}>Save</Button>
-                    <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => setEditingPostage(false)}>Cancel</Button>
+            {(() => {
+              const totalBooks = order.order_books.reduce((sum, ob) => sum + (Number(ob.total_price) - PS_CHARGE_RATES[ob.ps_charge]), 0);
+              const totalPs = order.order_books.reduce((sum, ob) => sum + PS_CHARGE_RATES[ob.ps_charge], 0);
+              const postage = order.postage_amount != null ? Number(order.postage_amount) : 0;
+              const grandTotal = totalBooks + totalPs + postage;
+              return (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total book price</span>
+                    <span>RM {totalBooks.toFixed(2)}</span>
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span>
-                      {order.postage_amount != null
-                        ? `RM ${Number(order.postage_amount).toFixed(2)}`
-                        : "—"}
-                    </span>
-                    {order.status === "active" && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => {
-                          setPostageAmount(order.postage_amount?.toString() ?? "");
-                          setEditingPostage(true);
-                        }}
-                      >
-                        Edit
-                      </Button>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total PS charge</span>
+                    <span>RM {totalPs.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Postage</span>
+                    {editingPostage ? (
+                      <div className="flex items-center gap-1">
+                        <select
+                          value={postageType}
+                          onChange={(e) => setPostageType(e.target.value as PostageType)}
+                          className="h-7 rounded-md border bg-background px-2 text-xs"
+                        >
+                          <option value="semenanjung">Semenanjung</option>
+                          <option value="sabah_sarawak">Sabah/Sarawak</option>
+                        </select>
+                        <Input
+                          className="h-7 w-20 text-xs"
+                          value={postageAmount}
+                          onChange={(e) => setPostageAmount(e.target.value)}
+                          placeholder="Amount"
+                        />
+                        <Button size="sm" className="h-7 text-xs px-2" onClick={handlePostageSave} disabled={!postageType}>Save</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => setEditingPostage(false)}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span>
+                          {order.postage_type
+                            ? `${order.postage_type === "semenanjung" ? "Semenanjung" : "Sabah/Sarawak"} — RM ${Number(order.postage_amount).toFixed(2)}`
+                            : "—"}
+                        </span>
+                        {order.postage_type && order.postage_paid && (
+                          <span className="text-xs text-primary font-medium">Paid</span>
+                        )}
+                        {order.status === "active" && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => {
+                                setPostageType(order.postage_type ?? "semenanjung");
+                                setPostageAmount(order.postage_amount?.toString() ?? "");
+                                setEditingPostage(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            {order.postage_type && !order.postage_paid && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => updateOrder.mutateAsync({ postage_paid: true })}
+                                disabled={updateOrder.isPending}
+                              >
+                                Paid
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            )}
-            <div className="flex justify-between font-medium">
-              <span>Total outstanding</span>
-              <span className={order.total_outstanding > 0 ? "text-destructive" : "text-primary"}>
-                RM {Number(order.total_outstanding).toFixed(2)}
-              </span>
-            </div>
+                  <div className="flex justify-between font-semibold border-t pt-2">
+                    <span>Total</span>
+                    <span>RM {grandTotal.toFixed(2)}</span>
+                  </div>
+                  {(() => {
+                    const postageOutstanding = (order.postage_type && !order.postage_paid)
+                      ? Number(order.postage_amount ?? 0)
+                      : 0;
+                    const totalOutstanding = Number(order.total_outstanding) + postageOutstanding;
+                    return (
+                      <div className="flex justify-between font-medium">
+                        <span>Total outstanding</span>
+                        <span className={totalOutstanding > 0 ? "text-destructive" : "text-primary"}>
+                          RM {totalOutstanding.toFixed(2)}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">
-            Books ({order.order_books.length})
-          </h2>
-          {order.status === "active" && (
-            <div className="flex items-center gap-2">
-              {order.order_books.some((ob) => ob.outstanding_amount > 0) && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handlePayAllFull}
-                  disabled={updateOrderBook.isPending}
-                >
-                  Paid full — all
+          {selectionMode ? (
+            <>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-medium">
+                  {selectedIds.size > 0 ? `${selectedIds.size} selected` : "Select books"}
+                </span>
+                {selectedIds.size < order.order_books.length && (
+                  <button
+                    type="button"
+                    onClick={toggleSelectAll}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    · Select all
+                  </button>
+                )}
+                {selectedIds.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    · Clear
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <BulkStatusPicker
+                  selectedCount={selectedIds.size}
+                  onApply={handleBulkApply}
+                  isPending={updateOrderBook.isPending}
+                />
+                <Button size="sm" variant="ghost" onClick={exitSelectionMode}>
+                  Cancel
                 </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-semibold">
+                Books ({order.order_books.length})
+              </h2>
+              {order.status === "active" && (
+                <div className="flex items-center gap-2">
+                  {order.order_books.some((ob) => ob.outstanding_amount > 0) && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handlePayAllFull}
+                      disabled={updateOrderBook.isPending}
+                    >
+                      Paid full — all
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => setAddBooksOpen(true)}>
+                    <Plus size={14} className="mr-1" />
+                    Add Books
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setSelectionMode(true)}>
+                    Set status
+                  </Button>
+                </div>
               )}
-              <Button size="sm" variant="outline" onClick={() => setAddBooksOpen(true)}>
-                <Plus size={14} className="mr-1" />
-                Add Books
-              </Button>
-            </div>
+            </>
           )}
         </div>
         <Card>
           <CardContent className="pt-4">
             {[...order.order_books].sort((a, b) => a.id - b.id).map((ob) => (
-              <OrderBookRow key={ob.id} ob={ob} orderId={Number(id)} />
+              <OrderBookRow
+                key={ob.id}
+                ob={ob}
+                orderId={Number(id)}
+                isActive={order.status === "active" && selectionMode}
+                isSelected={selectedIds.has(ob.id)}
+                onToggle={() => toggleSelect(ob.id)}
+              />
             ))}
           </CardContent>
         </Card>
@@ -616,6 +870,23 @@ export default function OrderDetailPage({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Cancel order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={reactivateOpen} onOpenChange={setReactivateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reactivate order #{order.id}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The order will become active again and all book copies will be reset to &quot;Deposit&quot; status.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep cancelled</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReactivate}>
+              Reactivate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

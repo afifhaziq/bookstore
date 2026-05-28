@@ -103,6 +103,7 @@ class OrderCreate(BaseModel):
 class OrderUpdate(BaseModel):
     postage_type: Optional[PostageType] = None
     postage_amount: Optional[Decimal] = None
+    postage_paid: Optional[bool] = None
     address: Optional[str] = None
     note: Optional[str] = None
 
@@ -117,6 +118,7 @@ class OrderDetail(BaseModel):
     status: OrderStatus
     postage_type: Optional[PostageType]
     postage_amount: Optional[Decimal]
+    postage_paid: bool
     address: str
     note: Optional[str]
     created_at: datetime
