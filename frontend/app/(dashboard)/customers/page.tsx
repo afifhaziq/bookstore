@@ -75,7 +75,7 @@ export default function CustomersPage() {
   }
 
   function handleCopy(id: number, name: string, phone: string, address: string | null) {
-    const lines = [name, phone, ...(address ? [address] : [])];
+    const lines = [name, phone.replace(/-/g, ""), ...(address ? [address] : [])];
     navigator.clipboard.writeText(lines.join("\n"));
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
