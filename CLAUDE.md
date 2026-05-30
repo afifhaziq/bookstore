@@ -37,8 +37,8 @@ uv add <package>                           # add dependency
 - **`app/models.py`** — SQLAlchemy ORM. Five tables: `users`, `publishers`, `books`, `orders`, `order_books`. All `Enum` columns use `native_enum=False` for SQLite test compatibility.
 - **`app/schemas.py`** — Pydantic request/response models.
 - **`app/database.py`** — Async SQLAlchemy engine. Uses `connect_args={"ssl": "require"}` for Postgres (Supabase), no SSL for SQLite.
-- **`app/auth.py`** — Supabase JWT verification via JWKS (RS256). In-memory JWKS cache with key-rotation retry. Overridden in tests via `dependency_overrides`.
-- **`app/config.py`** — `pydantic-settings` reads `DATABASE_URL` and `SUPABASE_URL` from `.env`.
+- **`app/auth.py`** — Supabase JWT verification via JWKS. Uses the algorithm declared by the JWKS key itself (defaults to RS256 if unset; Supabase now issues ES256). In-memory cache with key-rotation retry. Overridden in tests via `dependency_overrides`.
+- **`app/config.py`** — `pydantic-settings` reads `DATABASE_URL`, `SUPABASE_URL`, and `ALLOWED_ORIGINS` (comma-separated, defaults to `localhost:3000` + the Vercel deployment URL) from `.env`.
 
 ### Testing
 
@@ -48,6 +48,7 @@ Backend `.env` (not committed):
 ```
 DATABASE_URL=postgresql+asyncpg://postgres:<password>@db.<project>.supabase.co:5432/postgres
 SUPABASE_URL=https://<project>.supabase.co
+ALLOWED_ORIGINS=http://localhost:3000,https://bookstore-ten-azure.vercel.app
 ```
 
 ### Data Model
@@ -116,7 +117,7 @@ npm run lint       # ESLint
 - The shadcn install uses `@base-ui/react/button`, which does **not** support `asChild`. Use `buttonVariants()` as `className` on a plain `<Link>` instead of wrapping `<Link>` in `<Button>`. If using shadcn `SidebarMenuButton`, use the `render` prop: `render={<Link href={href} />}`.
 - Base UI Select's `onValueChange` passes `value | null` — always null-guard before using the value.
 - Tabs use Base UI (`@base-ui/react/tabs`) via `components/ui/tabs.tsx`. Import `TabsRoot`, `TabsList`, `TabsTrigger`, `TabsContent` — do not use shadcn's `Tabs`.
-- Next.js 16 App Router: use `use(params)` to unwrap params in client components (not `params.id` directly). See `frontend/AGENTS.md` for the reminder to read `node_modules/next/dist/docs/` before writing Next.js code.
+- Next.js 16 App Router: use `use(params)` to unwrap params in client components (not `params.id` directly). **Before writing any Next.js code, read the relevant guide in `node_modules/next/dist/docs/`** — this version has breaking API and convention changes from prior releases.
 - Route groups like `(dashboard)` don't add URL segments. `app/(dashboard)/page.tsx` and `app/page.tsx` would both map to `/` — conflict. Dashboard lives at `app/(dashboard)/dashboard/page.tsx`.
 
 ### Theme

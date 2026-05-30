@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Pencil, Check, X, Trash2 } from "lucide-react";
+import { Pencil, Check, X, Trash2, Copy } from "lucide-react";
 
 export default function CustomersPage() {
   const [search, setSearch] = useState("");
@@ -43,6 +43,7 @@ export default function CustomersPage() {
   const [defaultAddress, setDefaultAddress] = useState("");
 
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editAddress, setEditAddress] = useState("");
@@ -71,6 +72,13 @@ export default function CustomersPage() {
 
   function cancelEdit() {
     setEditingId(null);
+  }
+
+  function handleCopy(id: number, name: string, phone: string, address: string | null) {
+    const lines = [name, phone, ...(address ? [address] : [])];
+    navigator.clipboard.writeText(lines.join("\n"));
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
   }
 
   async function saveEdit(id: number) {
@@ -187,6 +195,15 @@ export default function CustomersPage() {
                       </div>
                     ) : (
                       <div className="flex justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => handleCopy(c.id, c.name, c.phone_number, c.default_address)}
+                          title="Copy info"
+                        >
+                          {copiedId === c.id ? <Check size={14} /> : <Copy size={14} />}
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
